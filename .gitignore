@@ -1,0 +1,17 @@
+build/*
+build/*.cmake
+build/*.ninja
+build/*.txt
+build/*.json
+build/CMakeFiles/
+build/detect_cuda_compute_capabilities.cu
+build/.ninja_deps
+build/.ninja_log
+build/Makefile/*
+
+# IDE generated #
+.vs/
+.vscode/
+
+*.pth
+
