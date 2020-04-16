@@ -15,3 +15,5 @@ build/Makefile/*
 
 *.pth
 
+trt_pose.egg-info/
+*.egg
