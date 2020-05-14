@@ -59,16 +59,16 @@ num_links = len(human_pose['skeleton'])
 
 if 'resnet' in args.model:
     print('------ model = resnet--------')
-    MODEL_WEIGHTS = 'resnet18_baseline_att_224x224_A_epoch_249.pth'
-    OPTIMIZED_MODEL = 'resnet18_baseline_att_224x224_A_epoch_249_trt.pth'
+    MODEL_WEIGHTS = '/home/jetsonnano/trained-weights/trt_human_pose/resnet18_baseline_att_224x224_A_epoch_249.pth'
+    OPTIMIZED_MODEL = '/home/jetsonnano/trained-weights/trt_human_pose/resnet18_baseline_att_224x224_A_epoch_249_trt.pth'
     model = trt_pose.models.resnet18_baseline_att(num_parts, 2 * num_links).cuda().eval()
     WIDTH = 224
     HEIGHT = 224
 
 else:    
     print('------ model = densenet--------')
-    MODEL_WEIGHTS = 'densenet121_baseline_att_256x256_B_epoch_160.pth'
-    OPTIMIZED_MODEL = 'densenet121_baseline_att_256x256_B_epoch_160_trt.pth'
+    MODEL_WEIGHTS = '/home/jetsonnano/trained-weights/trt_human_pose/densenet121_baseline_att_256x256_B_epoch_160.pth'
+    OPTIMIZED_MODEL = '/home/jetsonnano/trained-weights/trt_human_pose/densenet121_baseline_att_256x256_B_epoch_160_trt.pth'
     model = trt_pose.models.densenet121_baseline_att(num_parts, 2 * num_links).cuda().eval()
     WIDTH = 256
     HEIGHT = 256
