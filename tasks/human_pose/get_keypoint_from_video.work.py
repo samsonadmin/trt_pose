@@ -14,8 +14,27 @@ import argparse
 import os.path
 
 
-
-
+'''
+hnum: 0 based human index
+kpoint : keypoints (float type range : 0.0 ~ 1.0 ==> later multiply by image width, height
+'''
+def get_keypoint(humans, hnum, peaks):
+    #check invalid human index
+    kpoint = []
+    human = humans[0][hnum]
+    C = human.shape[0]
+    for j in range(C):
+        k = int(human[j])
+        if k >= 0:
+            peak = peaks[0][j][k]   # peak[1]:width, peak[0]:height
+            peak = (j, float(peak[0]), float(peak[1]))
+            kpoint.append(peak)
+            #print('index:%d : success [%5.3f, %5.3f]'%(j, peak[1], peak[2]) )
+        else:    
+            peak = (j, None, None)
+            kpoint.append(peak)
+            #print('index:%d : None %d'%(j, k) )
+    return kpoint
 
 
 parser = argparse.ArgumentParser(description='TensorRT pose estimation run')
@@ -76,103 +95,6 @@ mean = torch.Tensor([0.485, 0.456, 0.406]).cuda()
 std = torch.Tensor([0.229, 0.224, 0.225]).cuda()
 device = torch.device('cuda')
 
-#print("")
-
-
-body_labels = {0:'nose', 1: 'lEye', 2: 'rEye', 3:'lEar', 4:'rEar', 5:'lShoulder', 6:'rShoulder', 
-               7:'lElbow', 8:'rElbow', 9:'lWrist', 10:'rWrist', 11:'lHip', 12:'rHip', 13:'lKnee', 14:'rKnee',
-              15:'lAnkle', 16:'rAnkle', 17:'neck'}
-
-
-'''
-hnum: 0 based human index
-kpoint : keypoints (float type range : 0.0 ~ 1.0 ==> later multiply by image width, height
-'''
-def get_keypoint(humans, hnum, peaks):
-    #check invalid human index
-    kpoint = []
-    human = humans[0][hnum]
-    C = human.shape[0]
-    for j in range(C):
-        k = int(human[j])
-        if k >= 0:
-            peak = peaks[0][j][k]   # peak[1]:width, peak[0]:height
-            peak = (j, float(peak[0]), float(peak[1]))
-            kpoint.append(peak)
-
-            #edited following code might make it slower
-            print(body_labels[j], ' index:%d : success [%5.5f, %5.5f]'%(j, peak[1], peak[2]) )
-
-        else:    
-            peak = (j, None, None)
-            kpoint.append(peak)
-
-            #edited following code might make it slower
-            print(body_labels[j], ' index:%d : None %d'%(j, k) )
-    return kpoint
-
-
-class GetKeypoints(object):
-    def __init__(self, topology):
-        self.topology = topology
-        self.body_labels = {0:'nose', 1: 'lEye', 2: 'rEye', 3:'lEar', 4:'rEar', 5:'lShoulder', 6:'rShoulder',
-               7:'lElbow', 8:'rElbow', 9:'lWrist', 10:'rWrist', 11:'lHip', 12:'rHip', 13:'lKnee', 14:'rKnee',
-              15:'lAnkle', 16:'rAnkle', 17:'neck'}
-        self.body_parts = sorted(self.body_labels.values())
-
-    def __call__(self, image, object_counts, objects, normalized_peaks):
-        topology = self.topology
-        height = image.shape[0]
-        width = image.shape[1]
-
-        K = topology.shape[0]
-        count = int(object_counts[0])
-        if count > 1:
-            count = 1
-        K = topology.shape[0]
-        
-        body_dict = {}
-        feature_vec = []
-        for i in range(count):
-            obj = objects[0][i]
-            C = obj.shape[0]
-            for j in range(C):
-                k = int(obj[j])
-                if k >= 0:
-                    peak = normalized_peaks[0][j][k]
-                    x = round(float(peak[1]) * width)
-                    y = round(float(peak[0]) * height)
-                    body_dict[self.body_labels[j]] = [x,y]
-        for part in self.body_parts:
-            feature_vec.append(body_dict.get(part, [0,0]))
-        feature_vec = [item for sublist in feature_vec for item in sublist]
-        return feature_vec
-
-
-class ListHumans(object):
-    def __init__(self, body_labels=body_labels):
-        self.body_labels = body_labels
-
-    def __call__(self, objects, normalized_peaks):
-
-        pose_list = []
-        for obj in objects[0]:
-            pose_dict = {}
-            C = obj.shape[0]
-            for j in range(C):
-                k = int(obj[j])
-                if k >= 0:
-                    peak = normalized_peaks[0][j][k]
-                    x = round(float(peak[1]) * WIDTH)
-                    y = round(float(peak[0]) * HEIGHT)
-                    #cv2.circle(image, (x, y), 3, color, 2)
-                    pose_dict[self.body_labels[j]] = (x,y)
-            pose_list.append(pose_dict)
-
-        return pose_list
-
-humans = ListHumans()
-
 def preprocess(image):
     global device
     device = torch.device('cuda')
@@ -187,38 +109,11 @@ def execute(img, src, t):
     data = preprocess(img)
     cmap, paf = model_trt(data)
     cmap, paf = cmap.detach().cpu(), paf.detach().cpu()
-
-    ##Action
     counts, objects, peaks = parse_objects(cmap, paf)#, cmap_threshold=0.15, link_threshold=0.15)
     fps = 1.0 / (time.time() - t)
-
-    #color = (112,107,222)  # make dictionary from obj id to cmap
-
-    #edited following code might make it slower
-    #pose_list = humans(objects, peaks)    
-        
     for i in range(counts[0]):
-
-        #This is all the human key points
         keypoints = get_keypoint(objects, i, peaks)
-
-        #i is the different poople detected
-
-        #detecting if hand is raised, only follow if you are facing the wheelchair, and the camera can see your face and upper body
-        
-        #if lShoulder 5 or rShoulder 6 higher than nose 0 and can see both nose 0, lEye 1, rEye 2, lHip 11, rHip 12
-        if keypoints[5][1] is not None and keypoints[6][1] is not None and keypoints[0][1] is not None and keypoints[1][1] is not None and keypoints[2][1] is not None and keypoints[11][1] is not None and keypoints[12][1] is not None:
-            x = round(keypoints[9][2] * WIDTH * X_compress)
-            y = round(keypoints[9][1] * HEIGHT * Y_compress)            
-            cv2.putText(src , "Hand" , (x + 5, y),  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1)
-
-
-        #detection for fall down
-
-
-
         for j in range(len(keypoints)):
-
             if keypoints[j][1]:
                 x = round(keypoints[j][2] * WIDTH * X_compress)
                 y = round(keypoints[j][1] * HEIGHT * Y_compress)
@@ -233,8 +128,6 @@ def execute(img, src, t):
     #out_video.write(src)
     cv2.imshow(WINDOW_NAME, src)
 
-    #edited following code might make it slower
-    #return img, pose_list
 
 
 cap = cv2.VideoCapture(args.video, cv2.CAP_GSTREAMER)
@@ -264,7 +157,7 @@ parse_objects = ParseObjects(topology)
 draw_objects = DrawObjects(topology)
 
 
-while cap.isOpened():
+while cap.isOpened() and count < 150000:
     t = time.time()
     ret_val, dst = cap.read()
     if ret_val == False:
