@@ -12,7 +12,7 @@ from trt_pose.draw_objects import DrawObjects
 from trt_pose.parse_objects import ParseObjects
 import argparse
 import os.path
-
+import emoji 
 
 
 
@@ -56,9 +56,11 @@ else:
 
 data = torch.zeros((1, 3, HEIGHT, WIDTH)).cuda()
 if os.path.exists(OPTIMIZED_MODEL) == False:
+    print("Optimized Model NOT found, loading from Model")
     model.load_state_dict(torch.load(MODEL_WEIGHTS))
     model_trt = torch2trt.torch2trt(model, [data], fp16_mode=True, max_workspace_size=1<<25)
     torch.save(model_trt.state_dict(), OPTIMIZED_MODEL)
+    print("Optimized Model saved")
 
 model_trt = TRTModule()
 model_trt.load_state_dict(torch.load(OPTIMIZED_MODEL))
@@ -192,7 +194,7 @@ def execute(img, src, t):
     counts, objects, peaks = parse_objects(cmap, paf)#, cmap_threshold=0.15, link_threshold=0.15)
     fps = 1.0 / (time.time() - t)
 
-    #color = (112,107,222)  # make dictionary from obj id to cmap
+    color = (112,107,222)  # make dictionary from obj id to cmap
 
     #edited following code might make it slower
     #pose_list = humans(objects, peaks)    
@@ -207,10 +209,11 @@ def execute(img, src, t):
         #detecting if hand is raised, only follow if you are facing the wheelchair, and the camera can see your face and upper body
         
         #if lShoulder 5 or rShoulder 6 higher than nose 0 and can see both nose 0, lEye 1, rEye 2, lHip 11, rHip 12
-        if keypoints[5][1] is not None and keypoints[6][1] is not None and keypoints[0][1] is not None and keypoints[1][1] is not None and keypoints[2][1] is not None and keypoints[11][1] is not None and keypoints[12][1] is not None:
+        if keypoints[5][1] and keypoints[6][1] and keypoints[0][1] and keypoints[1][1] and keypoints[2][1] and keypoints[11][1] and keypoints[12][1]:
             x = round(keypoints[9][2] * WIDTH * X_compress)
-            y = round(keypoints[9][1] * HEIGHT * Y_compress)            
-            cv2.putText(src , "Hand" , (x + 5, y),  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1)
+            y = round(keypoints[9][1] * HEIGHT * Y_compress)
+            print(emoji.emojize(":grinning_face_with_big_eyes:"), ' detected' )
+            cv2.circle(src, (x, y), 30, (0, 0, 240), 3)
 
 
         #detection for fall down
