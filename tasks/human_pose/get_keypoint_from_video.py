@@ -12,13 +12,13 @@ from trt_pose.draw_objects import DrawObjects
 from trt_pose.parse_objects import ParseObjects
 import argparse
 import os.path
-import emoji 
+#import emoji 
 
 #for smoothing
 #for functions for faster calculations
-import numpy as np
+#import numpy as np
 #cuPy replacement for numpy
-import cupy as cp
+#import cupy as cp
 
 
 
@@ -66,6 +66,7 @@ if os.path.exists(OPTIMIZED_MODEL) == False:
     torch.save(model_trt.state_dict(), OPTIMIZED_MODEL)
     print("Optimized Model saved")
 
+
 model_trt = TRTModule()
 model_trt.load_state_dict(torch.load(OPTIMIZED_MODEL))
 
@@ -76,7 +77,9 @@ for i in range(50):
 torch.cuda.current_stream().synchronize()
 t1 = time.time()
 
-print(50.0 / (t1 - t0))
+
+print("It took %5.1f"%(50.0 / (t1 - t0)),"s to load Model" )
+
 
 mean = torch.Tensor([0.485, 0.456, 0.406]).cuda()
 std = torch.Tensor([0.229, 0.224, 0.225]).cuda()
@@ -112,78 +115,78 @@ def get_keypoint(humans, hnum, peaks):
             kpoint.append(peak)
 
             #edited following code might make it slower
-            print(body_labels[j], ' index:%d : success [%5.5f, %5.5f]'%(j, peak[1], peak[2]) )
+            #print(body_labels[j], ' index:%d : success [%5.5f, %5.5f]'%(j, peak[1], peak[2]) )
 
         else:    
             peak = (j, None, None)
             kpoint.append(peak)
 
             #edited following code might make it slower
-            print(body_labels[j], ' index:%d : None %d'%(j, k) )
+            #print(body_labels[j], ' index:%d : None %d'%(j, k) )
     return kpoint
 
 
-class GetKeypoints(object):
-    def __init__(self, topology):
-        self.topology = topology
-        self.body_labels = {0:'nose', 1: 'lEye', 2: 'rEye', 3:'lEar', 4:'rEar', 5:'lShoulder', 6:'rShoulder',
-               7:'lElbow', 8:'rElbow', 9:'lWrist', 10:'rWrist', 11:'lHip', 12:'rHip', 13:'lKnee', 14:'rKnee',
-              15:'lAnkle', 16:'rAnkle', 17:'neck'}
-        self.body_parts = sorted(self.body_labels.values())
+#class GetKeypoints(object):
+#    def __init__(self, topology):
+#        self.topology = topology
+#        self.body_labels = {0:'nose', 1: 'lEye', 2: 'rEye', 3:'lEar', 4:'rEar', 5:'lShoulder', 6:'rShoulder',
+#               7:'lElbow', 8:'rElbow', 9:'lWrist', 10:'rWrist', 11:'lHip', 12:'rHip', 13:'lKnee', 14:'rKnee',
+#              15:'lAnkle', 16:'rAnkle', 17:'neck'}
+#        self.body_parts = sorted(self.body_labels.values())
+#
+#    def __call__(self, image, object_counts, objects, normalized_peaks):
+#        topology = self.topology
+#        height = image.shape[0]
+#        width = image.shape[1]
+#
+#        K = topology.shape[0]
+#        count = int(object_counts[0])
+#        if count > 1:
+#            count = 1
+#        K = topology.shape[0]
+#        
+#        body_dict = {}
+#        feature_vec = []
+#        for i in range(count):
+#            obj = objects[0][i]
+#            C = obj.shape[0]
+#            for j in range(C):
+#                k = int(obj[j])
+#                if k >= 0:
+#                    peak = normalized_peaks[0][j][k]
+#                    x = round(float(peak[1]) * width)
+#                    y = round(float(peak[0]) * height)
+#                    body_dict[self.body_labels[j]] = [x,y]
+#        for part in self.body_parts:
+#            feature_vec.append(body_dict.get(part, [0,0]))
+#        feature_vec = [item for sublist in feature_vec for item in sublist]
+#        return feature_vec
+#
 
-    def __call__(self, image, object_counts, objects, normalized_peaks):
-        topology = self.topology
-        height = image.shape[0]
-        width = image.shape[1]
-
-        K = topology.shape[0]
-        count = int(object_counts[0])
-        if count > 1:
-            count = 1
-        K = topology.shape[0]
-        
-        body_dict = {}
-        feature_vec = []
-        for i in range(count):
-            obj = objects[0][i]
-            C = obj.shape[0]
-            for j in range(C):
-                k = int(obj[j])
-                if k >= 0:
-                    peak = normalized_peaks[0][j][k]
-                    x = round(float(peak[1]) * width)
-                    y = round(float(peak[0]) * height)
-                    body_dict[self.body_labels[j]] = [x,y]
-        for part in self.body_parts:
-            feature_vec.append(body_dict.get(part, [0,0]))
-        feature_vec = [item for sublist in feature_vec for item in sublist]
-        return feature_vec
-
-
-class ListHumans(object):
-    def __init__(self, body_labels=body_labels):
-        self.body_labels = body_labels
-
-    def __call__(self, objects, normalized_peaks):
-
-        pose_list = []
-        for obj in objects[0]:
-            pose_dict = {}
-            C = obj.shape[0]
-            for j in range(C):
-                k = int(obj[j])
-                if k >= 0:
-                    peak = normalized_peaks[0][j][k]
-                    x = round(float(peak[1]) * WIDTH)
-                    y = round(float(peak[0]) * HEIGHT)
-                    #cv2.circle(image, (x, y), 3, color, 2)
-                    pose_dict[self.body_labels[j]] = (x,y)
-            pose_list.append(pose_dict)
-
-        return pose_list
-
-humans = ListHumans()
-
+#class ListHumans(object):
+#    def __init__(self, body_labels=body_labels):
+#        self.body_labels = body_labels
+#
+#    def __call__(self, objects, normalized_peaks):
+#
+#        pose_list = []
+#        for obj in objects[0]:
+#            pose_dict = {}
+#            C = obj.shape[0]
+#            for j in range(C):
+#                k = int(obj[j])
+#                if k >= 0:
+#                    peak = normalized_peaks[0][j][k]
+#                    x = round(float(peak[1]) * WIDTH)
+#                    y = round(float(peak[0]) * HEIGHT)
+#                    #cv2.circle(image, (x, y), 3, color, 2)
+#                    pose_dict[self.body_labels[j]] = (x,y)
+#            pose_list.append(pose_dict)
+#
+#        return pose_list
+#
+#humans = ListHumans()
+#
 
 
 
@@ -238,7 +241,6 @@ def execute(img, src, t):
 
             #if camera can see both Wrist
             if keypoints[9][1] and keypoints[10][1]:
-                print(emoji.emojize(":grinning_face_with_big_eyes:"), ' detected' )
                 
 
                 if keypoints[10][1] < keypoints[9][1]:
@@ -251,10 +253,14 @@ def execute(img, src, t):
                         x = round(keypoints[10][2] * WIDTH * X_compress)
                         y = round(keypoints[10][1] * HEIGHT * Y_compress)      
 
-                        cv2.circle(src, (x, y), 8, (0, 176, 176), 3)  
+                        cv2.circle(src, (x, y), 10, (0, 176, 176), 3, cv2.LINE_AA)  
                         #hand_raised_human+=1
                         valid_raised_hand_human = True
-                        temp_target_keypoint = [keypoints[10][2], keypoints[10][1]]
+
+                        #set wrist as target
+                        #temp_target_keypoint = [keypoints[10][2], keypoints[10][1]]
+                        #change to nose as target
+                        temp_target_keypoint = [keypoints[0][2], keypoints[0][1]]
 
                       
 
@@ -268,10 +274,13 @@ def execute(img, src, t):
                         x = round(keypoints[9][2] * WIDTH * X_compress)
                         y = round(keypoints[9][1] * HEIGHT * Y_compress)  
 
-                        cv2.circle(src, (x, y), 8, (0, 176, 176), 3)  
+                        cv2.circle(src, (x, y), 10, (0, 176, 176), 3, cv2.LINE_AA)  
                         #hand_raised_human+=1
                         valid_raised_hand_human = True
-                        temp_target_keypoint = [keypoints[9][2], keypoints[9][1]]
+                        #set wrist as target
+                        #temp_target_keypoint = [keypoints[9][2], keypoints[9][1]]
+                        #change to nose as target
+                        temp_target_keypoint = [keypoints[0][2], keypoints[0][1]]                        
 
             #see the left wrist
             elif keypoints[9][1]:
@@ -283,10 +292,14 @@ def execute(img, src, t):
                     x = round(keypoints[9][2] * WIDTH * X_compress)
                     y = round(keypoints[9][1] * HEIGHT * Y_compress)
 
-                    cv2.circle(src, (x, y), 8, (0, 176, 176), 3)  
+                    cv2.circle(src, (x, y), 10, (0, 176, 176), 3, cv2.LINE_AA)  
                     #hand_raised_human+=1
                     valid_raised_hand_human = True
-                    temp_target_keypoint = [keypoints[9][2], keypoints[9][1]]
+
+                    #set wrist as target
+                    #temp_target_keypoint = [keypoints[9][2], keypoints[9][1]]
+                    #change to nose as target
+                    temp_target_keypoint = [keypoints[0][2], keypoints[0][1]]                    
 
             #see the right wrist                              
             elif keypoints[10][1]:
@@ -298,10 +311,14 @@ def execute(img, src, t):
                     x = round(keypoints[10][2] * WIDTH * X_compress)
                     y = round(keypoints[10][1] * HEIGHT * Y_compress)
                               
-                    cv2.circle(src, (x, y), 8, (0, 176, 176), 3)  
+                    cv2.circle(src, (x, y), 10, (0, 176, 176), 3, cv2.LINE_AA)  
                     #hand_raised_human+=1
                     valid_raised_hand_human = True
-                    temp_target_keypoint = [keypoints[10][2], keypoints[10][1]] 
+
+                    #set wrist as target
+                    #temp_target_keypoint = [keypoints[10][2], keypoints[10][1]] 
+                    #change to nose as target
+                    temp_target_keypoint = [keypoints[0][2], keypoints[0][1]]                    
 
 
             else:
@@ -321,6 +338,7 @@ def execute(img, src, t):
         #detection for fall down
 
 
+        #Loop all the keypoints in all humans and draw the dot
         for j in range(len(keypoints)):
 
             if keypoints[j][1]:
@@ -353,21 +371,31 @@ def execute(img, src, t):
 
         #render the text with open CV
         for j in range(len(text_to_display)):
-            cv2.putText(src , text_to_display[j], (13, 53 + 30 * j),  cv2.FONT_HERSHEY_DUPLEX, 0.9, (20, 20, 20), 2, cv2.LINE_8)
-            cv2.putText(src , text_to_display[j], (10, 50 + 30 * j),  cv2.FONT_HERSHEY_DUPLEX, 0.9, (51,255,51), 2, cv2.LINE_AA)
+            cv2.putText(src , text_to_display[j], (12, 52 + 30 * j),  cv2.FONT_HERSHEY_DUPLEX, 0.7, (20,20,20), 3, cv2.LINE_AA)
+            cv2.putText(src , text_to_display[j], (10, 50 + 30 * j),  cv2.FONT_HERSHEY_DUPLEX, 0.7, (234,181,69), 2, cv2.LINE_AA)
             
+        print( ', '.join(text_to_display) )
+                
+
+        #draw rectangle, with nose as center point
+        x1 = round(  (keypoints[0][2] - (keypoints[17][1]-keypoints[0][1])/2*0.8 )  * WIDTH * X_compress)
+        y1 = round(  (keypoints[0][1] - (keypoints[17][1]-keypoints[0][1])*0.8 )  * HEIGHT * Y_compress)
+        x2 = round(  (keypoints[0][2] + (keypoints[17][1]-keypoints[0][1])/2*0.8 )  * WIDTH * X_compress)
+        y2 = round(  (keypoints[0][1] + (keypoints[17][1]-keypoints[0][1])*0.8 )  * HEIGHT * Y_compress)
+        cv2.rectangle(src, (x1,y1), (x2,y2), (153,255,51), 2)
+
+        ##Instead of the circle on the nose
+        #x = round(target_keypoint[0] * WIDTH * X_compress)
+        #y = round(target_keypoint[1] * HEIGHT * Y_compress)
         
-        x = round(target_keypoint[0] * WIDTH * X_compress)
-        y = round(target_keypoint[1] * HEIGHT * Y_compress)
-
-        cv2.circle(src, (x, y), 12, (153,255,51), 2, cv2.LINE_AA)
+        #cv2.circle(src, (x, y), 12, (153,255,51), 2, cv2.LINE_AA)
 
 
-    print("FPS:%f "%(fps))
+    #print("FPS:%3.2f "%(fps))
     #draw_objects(img, counts, objects, peaks)
 
-    cv2.putText(src , "FPS: %f" % (fps), (11, 21),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (20, 20, 20), 1)
-    cv2.putText(src , "FPS: %f" % (fps), (10, 20),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (219, 255, 51), 1)
+    cv2.putText(src , "FPS: %3.2f" % (fps), (11, 21),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (20, 20, 20), 1)
+    cv2.putText(src , "FPS: %3.2f" % (fps), (10, 20),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (219, 255, 51), 1)
 	#skip writing
     #out_video.write(src)
     cv2.imshow(WINDOW_NAME, src)
