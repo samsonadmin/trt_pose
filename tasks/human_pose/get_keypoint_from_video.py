@@ -14,6 +14,8 @@ import argparse
 import os.path
 import emoji 
 
+#for smoothing
+import numpy as np
 
 
 
@@ -79,6 +81,9 @@ std = torch.Tensor([0.229, 0.224, 0.225]).cuda()
 device = torch.device('cuda')
 
 #print("")
+
+display_width = 1920
+display_height = 1080
 
 
 body_labels = {0:'nose', 1: 'lEye', 2: 'rEye', 3:'lEar', 4:'rEar', 5:'lShoulder', 6:'rShoulder', 
@@ -175,6 +180,9 @@ class ListHumans(object):
 
 humans = ListHumans()
 
+
+
+
 def preprocess(image):
     global device
     device = torch.device('cuda')
@@ -185,6 +193,7 @@ def preprocess(image):
     return image[None, ...]
 
 def execute(img, src, t):
+    global hand_raised_human
     color = (0, 255, 0)
     data = preprocess(img)
     cmap, paf = model_trt(data)
@@ -198,6 +207,8 @@ def execute(img, src, t):
 
     #edited following code might make it slower
     #pose_list = humans(objects, peaks)    
+
+    
         
     for i in range(counts[0]):
 
@@ -209,24 +220,91 @@ def execute(img, src, t):
         #detecting if hand is raised, only follow if you are facing the wheelchair, and the camera can see your face and upper body
         
         #if lShoulder 5 or rShoulder 6 higher than nose 0 and can see both nose 0, lEye 1, rEye 2, lHip 11, rHip 12
-        if keypoints[5][1] and keypoints[6][1] and keypoints[0][1] and keypoints[1][1] and keypoints[2][1] and keypoints[11][1] and keypoints[12][1]:
-            x = round(keypoints[9][2] * WIDTH * X_compress)
-            y = round(keypoints[9][1] * HEIGHT * Y_compress)
-            print(emoji.emojize(":grinning_face_with_big_eyes:"), ' detected' )
-            cv2.circle(src, (x, y), 30, (0, 0, 240), 3)
+        if keypoints[5][1] and keypoints[6][1] and keypoints[0][1] and keypoints[1][1] and keypoints[2][1] and ( keypoints[9][1] or keypoints[10][1] ):
 
+
+            #if camera can see both Wrist
+            if keypoints[9][1] and keypoints[10][1]:
+                print(emoji.emojize(":grinning_face_with_big_eyes:"), ' detected' )
+                cv2.putText(src , "Both Hands detected", (20, 60),  cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
+
+                
+                if keypoints[10][1] < keypoints[9][1]:
+                    
+                    #if right hand higher than right shoulder 
+                    if keypoints[10][1] < keypoints[6][1]:
+                        print("Right Hand Higher")
+                        cv2.putText(src , "Right Hand Higher detected", (420, 60),  cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
+                        x = round(keypoints[10][2] * WIDTH * X_compress)
+                        y = round(keypoints[10][1] * HEIGHT * Y_compress)      
+
+                        cv2.circle(src, (x, y), 30, (0, 255, 255), 3)  
+                        hand_raised_human+=1
+
+                        if keypoints[10][2] < 0.5:
+                            cv2.putText(src , "Turn right", (420, 60),  cv2.FONT_HERSHEY_SIMPLEX, 0.9, (30, 30, 30), 2)                            
+
+                else:
+
+                    #if left hand higher than left shoulder 
+                    if keypoints[9][1] < keypoints[5][1]:
+
+                        print("Left Hand Higher")
+                        cv2.putText(src , "Left Hand Higher detected", (420, 60+ hand_raised_human * 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)                      
+                        x = round(keypoints[9][2] * WIDTH * X_compress)
+                        y = round(keypoints[9][1] * HEIGHT * Y_compress)  
+
+                        cv2.circle(src, (x, y), 30, (0, 255, 255), 3)  
+                        hand_raised_human+=1
+
+            #see the left wrist
+            elif keypoints[9][1]:
+                #print( "Left Hand", keypoints[9][1], keypoints[5][1])
+
+                #if left hand higher than left shoulder 
+                if keypoints[9][1] < keypoints[5][1]:                
+                    print("Left Hand")
+                    cv2.putText(src , "Left Hand detected", (20, 60),  cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
+                    x = round(keypoints[9][2] * WIDTH * X_compress)
+                    y = round(keypoints[9][1] * HEIGHT * Y_compress)
+
+                    cv2.circle(src, (x, y), 30, (0, 255, 255), 3)  
+                    hand_raised_human+=1                    
+
+            #see the right wrist                              
+            elif keypoints[10][1]:
+                #print( "Right Hand", keypoints[10][1], keypoints[6][1])
+
+                #if right hand higher than right shoulder 
+                if keypoints[10][1] < keypoints[6][1]:                
+                    print("Right Hand")
+                    cv2.putText(src , "Right Hand detected", (20, 60),  cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 1) 
+                    x = round(keypoints[10][2] * WIDTH * X_compress)
+                    y = round(keypoints[10][1] * HEIGHT * Y_compress)
+                              
+                    cv2.circle(src, (x, y), 30, (0, 255, 255), 3)  
+                    hand_raised_human+=1
+
+
+
+            else:
+                pass
 
         #detection for fall down
 
 
 
+
+
         for j in range(len(keypoints)):
 
+
             if keypoints[j][1]:
+
                 x = round(keypoints[j][2] * WIDTH * X_compress)
                 y = round(keypoints[j][1] * HEIGHT * Y_compress)
                 cv2.circle(src, (x, y), 3, color, 2)
-                cv2.putText(src , "%d" % int(keypoints[j][0]), (x + 5, y),  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1)
+                cv2.putText(src , "%d" % int(keypoints[j][0]), (x + 5, y),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 45, 45), 2)
                 cv2.circle(src, (x, y), 3, color, 2)
     print("FPS:%f "%(fps))
     #draw_objects(img, counts, objects, peaks)
@@ -241,14 +319,14 @@ def execute(img, src, t):
 
 
 cap = cv2.VideoCapture(args.video, cv2.CAP_GSTREAMER)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, display_width)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, display_height)
 
 ret_val, img = cap.read()
 fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
 
 #skip writing
-#out_video = cv2.VideoWriter('output.mp4', fourcc, cap.get(cv2.CAP_PROP_FPS), (1920, 1080))
+#out_video = cv2.VideoWriter('output.mp4', fourcc, cap.get(cv2.CAP_PROP_FPS), (display_width, display_height))
 
 cv2.namedWindow(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN) 
 cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
@@ -256,8 +334,8 @@ cv2.resizeWindow(WINDOW_NAME, 640, 360)
 
 count = 0
 
-X_compress = 1920.0 / WIDTH * 1.0
-Y_compress = 1080.0 / HEIGHT * 1.0
+X_compress = display_width / WIDTH * 1.0
+Y_compress = display_height / HEIGHT * 1.0
 
 if cap is None:
     print("Camera Open Error")
@@ -268,6 +346,10 @@ draw_objects = DrawObjects(topology)
 
 
 while cap.isOpened():
+
+    #explict counting of detect raised hands humnas
+    hand_raised_human = 0
+
     t = time.time()
     ret_val, dst = cap.read()
     if ret_val == False:
