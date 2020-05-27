@@ -8,7 +8,7 @@ import time, sys
 import cv2
 import torchvision.transforms as transforms
 import PIL.Image
-from trt_pose.draw_objects import DrawObjects
+#from trt_pose.draw_objects import DrawObjects
 from trt_pose.parse_objects import ParseObjects
 import argparse
 import os.path
@@ -16,7 +16,7 @@ import os.path
 
 #for smoothing
 #for functions for faster calculations
-#import numpy as np
+import numpy as np
 #cuPy replacement for numpy
 #import cupy as cp
 
@@ -228,8 +228,13 @@ def execute(img, src, t):
 
         temp_text_to_display = []
 
+        keypoints_x = []
+        keypoints_y = []        
+
         #This is all the human key points
         keypoints = get_keypoint(objects, i, peaks)
+        #print("LEN:",len(keypoints), "CNT:", counts[0])
+
 
         #i is the different poople detected
 
@@ -337,6 +342,42 @@ def execute(img, src, t):
 
         #detection for fall down
 
+        #if (keypoints[5][1] or keypoints[6][1]) and (keypoints[11][1] or keypoints[12][1]):
+        #    print('fall down')
+
+
+
+
+        if (keypoints[5][1] or keypoints[6][1]) and (keypoints[7][1] or keypoints[8][1]) and (keypoints[11][1] or keypoints[12][1]):
+
+            for j in range(len(keypoints)):
+                if keypoints[j][1]:
+                    keypoints_x.append( keypoints[j][2] )
+                    keypoints_y.append( keypoints[j][1] )
+
+            if len(keypoints_x) > 4:
+                standard_dev_x = np.std(keypoints_x)
+                standard_dev_y = np.std(keypoints_y)
+                text_to_display.append( "{} points with x: {:.4f} y: {:.4f}".format(len(keypoints_x), standard_dev_x,standard_dev_y) )
+
+                ##Possible tuning of variable
+                fall_detection_percent = standard_dev_x / standard_dev_y / 0.9
+                if fall_detection_percent > 1:
+                    fall_detection_percent = 1
+
+                if standard_dev_y / standard_dev_x > 2:
+                    fall_detection_percent = 1
+                else:
+                    text_to_display.append( "Possible fall down {:2.2f}%".format(fall_detection_percent*100) )
+                    
+
+        '''
+        rhip > lknee
+        '''
+
+
+        ##Below is for display purposes
+
 
         #Loop all the keypoints in all humans and draw the dot
         for j in range(len(keypoints)):
@@ -348,6 +389,104 @@ def execute(img, src, t):
                 cv2.circle(src, (x, y), 3, color, 2, cv2.LINE_AA)
                 cv2.putText(src , "%d" % int(keypoints[j][0]), (x + 5, y),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 45, 45), 2, cv2.LINE_AA)
 
+
+
+        #draw nose to neck
+        if keypoints[0][1] and keypoints[17][1]:
+            x0 = round(keypoints[0][2] * WIDTH * X_compress)
+            y0 = round(keypoints[0][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[17][2] * WIDTH * X_compress)
+            y1 = round(keypoints[17][1] * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+
+        #draw neck to rshoulder
+        if keypoints[17][1] and keypoints[6][1]:
+            x0 = round(keypoints[17][2] * WIDTH * X_compress)
+            y0 = round(keypoints[17][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[6][2] * WIDTH * X_compress)
+            y1 = round(keypoints[6][1] * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+
+        #draw neck to lshoulder
+        if keypoints[17][1] and keypoints[5][1]:
+            x0 = round(keypoints[17][2] * WIDTH * X_compress)
+            y0 = round(keypoints[17][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[5][2] * WIDTH * X_compress)
+            y1 = round(keypoints[5][1] * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+
+        #draw rshoulder to rElbow
+        if keypoints[6][1] and keypoints[8][1]:
+            x0 = round(keypoints[6][2] * WIDTH * X_compress)
+            y0 = round(keypoints[6][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[8][2] * WIDTH * X_compress)
+            y1 = round(keypoints[8][1] * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+                    
+        #draw rElbow to rWrist
+        if keypoints[8][1] and keypoints[10][1]:
+            x0 = round(keypoints[10][2] * WIDTH * X_compress)
+            y0 = round(keypoints[10][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[8][2] * WIDTH * X_compress)
+            y1 = round(keypoints[8][1] * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+
+        #draw lshoulder to lElbow
+        if keypoints[5][1] and keypoints[7][1]:
+            x0 = round(keypoints[5][2] * WIDTH * X_compress)
+            y0 = round(keypoints[5][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[7][2] * WIDTH * X_compress)
+            y1 = round(keypoints[7][1] * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+
+        #draw lElbow to lWrist
+        if keypoints[7][1] and keypoints[9][1]:
+            x0 = round(keypoints[7][2] * WIDTH * X_compress)
+            y0 = round(keypoints[7][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[9][2] * WIDTH * X_compress)
+            y1 = round(keypoints[9][1] * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+
+        #draw neck to center hip
+        if keypoints[17][1] and keypoints[11][1] and keypoints[12][1]:
+            x0 = round(keypoints[17][2] * WIDTH * X_compress)
+            y0 = round(keypoints[17][1] * WIDTH * Y_compress)
+            x1 = round( (keypoints[11][2]+keypoints[12][2])/2 * WIDTH * X_compress)
+            y1 = round( (keypoints[11][1]+keypoints[12][1])/2 * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+
+        #draw center hip to right knee
+        if keypoints[14][1] and keypoints[11][1] and keypoints[12][1]:
+            x0 = round(keypoints[14][2] * WIDTH * X_compress)
+            y0 = round(keypoints[14][1] * WIDTH * Y_compress)
+            x1 = round( (keypoints[11][2]+keypoints[12][2])/2 * WIDTH * X_compress)
+            y1 = round( (keypoints[11][1]+keypoints[12][1])/2 * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)        
+
+
+        #draw center hip to left knee
+        if keypoints[13][1] and keypoints[11][1] and keypoints[12][1]:
+            x0 = round(keypoints[13][2] * WIDTH * X_compress)
+            y0 = round(keypoints[13][1] * WIDTH * Y_compress)
+            x1 = round( (keypoints[11][2]+keypoints[12][2])/2 * WIDTH * X_compress)
+            y1 = round( (keypoints[11][1]+keypoints[12][1])/2 * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)      
+
+        #draw rKnee to rAnkle
+        if keypoints[14][1] and keypoints[16][1]:
+            x0 = round(keypoints[14][2] * WIDTH * X_compress)
+            y0 = round(keypoints[14][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[16][2] * WIDTH * X_compress)
+            y1 = round(keypoints[16][1] * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+
+        #draw lKnee to lAnkle
+        if keypoints[13][1] and keypoints[15][1]:
+            x0 = round(keypoints[13][2] * WIDTH * X_compress)
+            y0 = round(keypoints[13][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[15][2] * WIDTH * X_compress)
+            y1 = round(keypoints[15][1] * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)            
 
     #output the selected human and action that should be taken
     if last_valid_human_nose_neck_distance_squared > 0:
@@ -368,14 +507,7 @@ def execute(img, src, t):
                 text_to_display.append("ACTION: Stop, coming to close")
 
         text_to_display.append( "target-keypoint: %5.5f, %5.5f"%( target_keypoint[0], target_keypoint[1] ) )
-
-        #render the text with open CV
-        for j in range(len(text_to_display)):
-            cv2.putText(src , text_to_display[j], (12, 52 + 30 * j),  cv2.FONT_HERSHEY_DUPLEX, 0.7, (20,20,20), 3, cv2.LINE_AA)
-            cv2.putText(src , text_to_display[j], (10, 50 + 30 * j),  cv2.FONT_HERSHEY_DUPLEX, 0.7, (234,181,69), 2, cv2.LINE_AA)
-            
-        print( ', '.join(text_to_display) )
-                
+              
 
         #draw rectangle, with nose as center point
         x1 = round(  (keypoints[0][2] - (keypoints[17][1]-keypoints[0][1])/2*0.8 )  * WIDTH * X_compress)
@@ -390,6 +522,14 @@ def execute(img, src, t):
         
         #cv2.circle(src, (x, y), 12, (153,255,51), 2, cv2.LINE_AA)
 
+    #render the text with open CV
+    for j in range(len(text_to_display)):
+        cv2.putText(src , text_to_display[j], (12, 52 + 30 * j),  cv2.FONT_HERSHEY_DUPLEX, 0.7, (20,20,20), 3, cv2.LINE_AA)
+        cv2.putText(src , text_to_display[j], (10, 50 + 30 * j),  cv2.FONT_HERSHEY_DUPLEX, 0.7, (234,181,69), 2, cv2.LINE_AA)
+        
+    print( ', '.join(text_to_display) )
+
+    text_to_display = []
 
     #print("FPS:%3.2f "%(fps))
     #draw_objects(img, counts, objects, peaks)
@@ -428,7 +568,7 @@ if cap is None:
     sys.exit(0)
 
 parse_objects = ParseObjects(topology)
-draw_objects = DrawObjects(topology)
+#draw_objects = DrawObjects(topology)
 
 
 while cap.isOpened():
