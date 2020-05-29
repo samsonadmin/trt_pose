@@ -205,6 +205,7 @@ def execute(img, src, t):
 
     ##Action
     counts, objects, peaks = parse_objects(cmap, paf)#, cmap_threshold=0.15, link_threshold=0.15)
+    
     fps = 1.0 / (time.time() - t)
 
     color = (112,107,222)  # make dictionary from obj id to cmap

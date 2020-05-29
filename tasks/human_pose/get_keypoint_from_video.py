@@ -13,6 +13,7 @@ from trt_pose.parse_objects import ParseObjects
 import argparse
 import os.path
 #import emoji 
+import serial
 
 #for smoothing
 #for functions for faster calculations
@@ -20,7 +21,13 @@ import numpy as np
 #cuPy replacement for numpy
 #import cupy as cp
 
-
+serial_port = serial.Serial(
+    port="/dev/ttyTHS1",
+    baudrate=115200,
+    bytesize=serial.EIGHTBITS,
+    parity=serial.PARITY_NONE,
+    stopbits=serial.STOPBITS_ONE,
+)
 
 parser = argparse.ArgumentParser(description='TensorRT pose estimation run')
 parser.add_argument('--model', type=str, default='resnet', help = 'resnet or densenet' )
@@ -199,9 +206,19 @@ def preprocess(image):
     image.sub_(mean[:, None, None]).div_(std[:, None, None])
     return image[None, ...]
 
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 def execute(img, src, t):
 
-    color = (0, 255, 0)
+    
     data = preprocess(img)
     cmap, paf = model_trt(data)
     cmap, paf = cmap.detach().cpu(), paf.detach().cpu()
@@ -210,7 +227,7 @@ def execute(img, src, t):
     counts, objects, peaks = parse_objects(cmap, paf)#, cmap_threshold=0.15, link_threshold=0.15)
     fps = 1.0 / (time.time() - t)
 
-    color = (112,107,222)  # make dictionary from obj id to cmap
+    # make dictionary from obj id to cmap
 
     #edited following code might make it slower
     #pose_list = humans(objects, peaks)    
@@ -355,20 +372,20 @@ def execute(img, src, t):
                     keypoints_x.append( keypoints[j][2] )
                     keypoints_y.append( keypoints[j][1] )
 
-            if len(keypoints_x) > 4:
+            if len(keypoints_x) > 5:
                 standard_dev_x = np.std(keypoints_x)
                 standard_dev_y = np.std(keypoints_y)
                 text_to_display.append( "{} points with x: {:.4f} y: {:.4f}".format(len(keypoints_x), standard_dev_x,standard_dev_y) )
 
                 ##Possible tuning of variable
-                fall_detection_percent = standard_dev_x / standard_dev_y / 0.9
+                fall_detection_percent = standard_dev_x / standard_dev_y / 1.2
                 if fall_detection_percent > 1:
                     fall_detection_percent = 1
 
                 if standard_dev_y / standard_dev_x > 2:
                     fall_detection_percent = 1
                 else:
-                    text_to_display.append( "Possible fall down {:2.2f}%".format(fall_detection_percent*100) )
+                    text_to_display.append("Possible fall down {:2.2f}%".format(fall_detection_percent*100))
                     
 
         '''
@@ -379,6 +396,7 @@ def execute(img, src, t):
         ##Below is for display purposes
 
 
+        color = (112,107,222)
         #Loop all the keypoints in all humans and draw the dot
         for j in range(len(keypoints)):
 
@@ -447,30 +465,72 @@ def execute(img, src, t):
             y1 = round(keypoints[9][1] * WIDTH * Y_compress)
             cv2.line(src, (x0, y0), (x1, y1), color, 2)
 
-        #draw neck to center hip
-        if keypoints[17][1] and keypoints[11][1] and keypoints[12][1]:
-            x0 = round(keypoints[17][2] * WIDTH * X_compress)
-            y0 = round(keypoints[17][1] * WIDTH * Y_compress)
-            x1 = round( (keypoints[11][2]+keypoints[12][2])/2 * WIDTH * X_compress)
-            y1 = round( (keypoints[11][1]+keypoints[12][1])/2 * WIDTH * Y_compress)
+        #draw rShoulder to rHip
+        if keypoints[6][1] and keypoints[12][1]:
+            x0 = round(keypoints[6][2] * WIDTH * X_compress)
+            y0 = round(keypoints[6][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[12][2] * WIDTH * X_compress)
+            y1 = round(keypoints[12][1] * WIDTH * Y_compress)
             cv2.line(src, (x0, y0), (x1, y1), color, 2)
 
-        #draw center hip to right knee
-        if keypoints[14][1] and keypoints[11][1] and keypoints[12][1]:
-            x0 = round(keypoints[14][2] * WIDTH * X_compress)
-            y0 = round(keypoints[14][1] * WIDTH * Y_compress)
-            x1 = round( (keypoints[11][2]+keypoints[12][2])/2 * WIDTH * X_compress)
-            y1 = round( (keypoints[11][1]+keypoints[12][1])/2 * WIDTH * Y_compress)
+        #draw lShoulder to lHip
+        if keypoints[5][1] and keypoints[11][1]:
+            x0 = round(keypoints[5][2] * WIDTH * X_compress)
+            y0 = round(keypoints[5][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[11][2] * WIDTH * X_compress)
+            y1 = round(keypoints[11][1] * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+
+        color = (0, 255, 136)
+        #draw rHip to rKnee
+        if keypoints[12][1] and keypoints[14][1]:
+            x0 = round(keypoints[12][2] * WIDTH * X_compress)
+            y0 = round(keypoints[12][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[14][2] * WIDTH * X_compress)
+            y1 = round(keypoints[14][1] * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+
+        #draw lHip to lKnee
+        if keypoints[11][1] and keypoints[13][1]:
+            x0 = round(keypoints[11][2] * WIDTH * X_compress)
+            y0 = round(keypoints[11][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[13][2] * WIDTH * X_compress)
+            y1 = round(keypoints[13][1] * WIDTH * Y_compress)
+            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+
+        #draw rHip to lHip
+        if keypoints[12][1] and keypoints[11][1]:
+            x0 = round(keypoints[12][2] * WIDTH * X_compress)
+            y0 = round(keypoints[12][1] * WIDTH * Y_compress)
+            x1 = round(keypoints[11][2] * WIDTH * X_compress)
+            y1 = round(keypoints[12][1] * WIDTH * Y_compress)
             cv2.line(src, (x0, y0), (x1, y1), color, 2)        
 
 
-        #draw center hip to left knee
-        if keypoints[13][1] and keypoints[11][1] and keypoints[12][1]:
-            x0 = round(keypoints[13][2] * WIDTH * X_compress)
-            y0 = round(keypoints[13][1] * WIDTH * Y_compress)
-            x1 = round( (keypoints[11][2]+keypoints[12][2])/2 * WIDTH * X_compress)
-            y1 = round( (keypoints[11][1]+keypoints[12][1])/2 * WIDTH * Y_compress)
-            cv2.line(src, (x0, y0), (x1, y1), color, 2)      
+#        #draw neck to center hip
+#        if keypoints[17][1] and keypoints[11][1] and keypoints[12][1]:
+#            x0 = round(keypoints[17][2] * WIDTH * X_compress)
+#            y0 = round(keypoints[17][1] * WIDTH * Y_compress)
+#            x1 = round( (keypoints[11][2]+keypoints[12][2])/2 * WIDTH * X_compress)
+#            y1 = round( (keypoints[11][1]+keypoints[12][1])/2 * WIDTH * Y_compress)
+#            cv2.line(src, (x0, y0), (x1, y1), color, 2)
+#
+#        #draw center hip to right knee
+#        if keypoints[14][1] and keypoints[11][1] and keypoints[12][1]:
+#            x0 = round(keypoints[14][2] * WIDTH * X_compress)
+#            y0 = round(keypoints[14][1] * WIDTH * Y_compress)
+#            x1 = round( (keypoints[11][2]+keypoints[12][2])/2 * WIDTH * X_compress)
+#            y1 = round( (keypoints[11][1]+keypoints[12][1])/2 * WIDTH * Y_compress)
+#            cv2.line(src, (x0, y0), (x1, y1), color, 2)        
+#
+#
+#        #draw center hip to left knee
+#        if keypoints[13][1] and keypoints[11][1] and keypoints[12][1]:
+#            x0 = round(keypoints[13][2] * WIDTH * X_compress)
+#            y0 = round(keypoints[13][1] * WIDTH * Y_compress)
+#            x1 = round( (keypoints[11][2]+keypoints[12][2])/2 * WIDTH * X_compress)
+#            y1 = round( (keypoints[11][1]+keypoints[12][1])/2 * WIDTH * Y_compress)
+#            cv2.line(src, (x0, y0), (x1, y1), color, 2)      
 
         #draw rKnee to rAnkle
         if keypoints[14][1] and keypoints[16][1]:
@@ -493,16 +553,19 @@ def execute(img, src, t):
         #largest_valid_human_keypoints
         keypoints = largest_valid_human_keypoints       
 
-        #Variable to Tune
+        #Variables to Tune
         if target_keypoint[0] < 0.4:
-            text_to_display.append("ACTION: Turn Left") 
+            text_to_display.append("ACTION: Turn Left 'q'") 
+            serial_port.write("q\r\n".encode())
         elif target_keypoint[0] > 0.5:
-            text_to_display.append("ACTION: Turn Right") 
+            text_to_display.append("ACTION: Turn Right 'e'")
+            serial_port.write("e\r\n".encode())
         else:
             #if nose to neck is too small, it mean it is close to person, stop
             ##Tune this number to stop going forward
             if (  pow( (keypoints[17][2]-keypoints[0][2]),2) + pow( (keypoints[17][1]-keypoints[0][1]),2) < 0.029980197 ):
-                text_to_display.append("ACTION: Go Straight Forward")
+                text_to_display.append("ACTION: Go Straight Forward 'w'")
+                serial_port.write("w\r\n".encode())
             else:
                 text_to_display.append("ACTION: Stop, coming to close")
 
@@ -526,10 +589,13 @@ def execute(img, src, t):
     for j in range(len(text_to_display)):
         cv2.putText(src , text_to_display[j], (12, 52 + 30 * j),  cv2.FONT_HERSHEY_DUPLEX, 0.7, (20,20,20), 3, cv2.LINE_AA)
         cv2.putText(src , text_to_display[j], (10, 50 + 30 * j),  cv2.FONT_HERSHEY_DUPLEX, 0.7, (234,181,69), 2, cv2.LINE_AA)
-        
-    print( ', '.join(text_to_display) )
 
-    text_to_display = []
+        if text_to_display[j].find('Possible fall') > -1 :
+            text_to_display[j] = bcolors.WARNING + text_to_display[j] + bcolors.ENDC
+
+    if len(text_to_display) > 0: 
+        print( ', '.join(text_to_display) )
+        text_to_display = []
 
     #print("FPS:%3.2f "%(fps))
     #draw_objects(img, counts, objects, peaks)
@@ -570,25 +636,30 @@ if cap is None:
 parse_objects = ParseObjects(topology)
 #draw_objects = DrawObjects(topology)
 
+try:
 
-while cap.isOpened():
+    while cap.isOpened():
 
-    t = time.time()
-    ret_val, dst = cap.read()
-    if ret_val == False:
-        print("Camera read Error")
-        break
+        t = time.time()
+        ret_val, dst = cap.read()
+        if ret_val == False:
+            print("Camera read Error")
+            break
 
-    img = cv2.resize(dst, dsize=(WIDTH, HEIGHT), interpolation=cv2.INTER_AREA)
-    execute(img, dst, t)
-    count += 1
-    key = cv2.waitKey(1)
+        img = cv2.resize(dst, dsize=(WIDTH, HEIGHT), interpolation=cv2.INTER_AREA)
+        execute(img, dst, t)
+        count += 1
+        key = cv2.waitKey(1)
 
-    if key == 27 or key == ord("q"): # ESC 
-       break
+        if key == 27 or key == ord("q"): # ESC 
+            break
+
+except KeyboardInterrupt:
+    print("Keyboard interrupt exception caught")
 
 
-
-cv2.destroyAllWindows()
-#out_video.release()
-cap.release()
+finally:
+    cv2.destroyAllWindows()
+    #out_video.release()
+    cap.release()
+    serial_port.close()
