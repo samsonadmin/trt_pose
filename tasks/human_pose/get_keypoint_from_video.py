@@ -21,13 +21,29 @@ import numpy as np
 #cuPy replacement for numpy
 #import cupy as cp
 
-serial_port = serial.Serial(
-    port="/dev/ttyTHS1",
-    baudrate=115200,
-    bytesize=serial.EIGHTBITS,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-)
+#serial_port = serial.Serial(
+#    port="/dev/ttyTHS1",
+#    baudrate=115200,
+#    bytesize=serial.EIGHTBITS,
+#    parity=serial.PARITY_NONE,
+#    stopbits=serial.STOPBITS_ONE,
+#)
+#
+
+try:
+    serial_port = serial.Serial(
+        port="/dev/ttyUSB0",
+        #port="/dev/ttyTHS1",
+        baudrate=115200,
+        bytesize=serial.EIGHTBITS,
+        parity=serial.PARITY_NONE,
+        stopbits=serial.STOPBITS_ONE,
+    )
+    serial_ok = True
+
+except:
+    serial_ok = False
+
 
 parser = argparse.ArgumentParser(description='TensorRT pose estimation run')
 parser.add_argument('--model', type=str, default='resnet', help = 'resnet or densenet' )
@@ -396,7 +412,8 @@ def execute(img, src, t):
         ##Below is for display purposes
 
 
-        color = (112,107,222)
+        #color = (112,107,222)
+        color = (0, 255, 136)
         #Loop all the keypoints in all humans and draw the dot
         for j in range(len(keypoints)):
 
@@ -481,7 +498,7 @@ def execute(img, src, t):
             y1 = round(keypoints[11][1] * WIDTH * Y_compress)
             cv2.line(src, (x0, y0), (x1, y1), color, 2)
 
-        color = (0, 255, 136)
+        
         #draw rHip to rKnee
         if keypoints[12][1] and keypoints[14][1]:
             x0 = round(keypoints[12][2] * WIDTH * X_compress)
@@ -555,19 +572,31 @@ def execute(img, src, t):
 
         #Variables to Tune
         if target_keypoint[0] < 0.4:
-            text_to_display.append("ACTION: Turn Left 'q'") 
-            serial_port.write("q\r\n".encode())
+            text_to_display.append("ACTION: Turn Left 'a'") 
+            if serial_ok:
+                serial_port.write("a\r\n".encode())
         elif target_keypoint[0] > 0.5:
-            text_to_display.append("ACTION: Turn Right 'e'")
-            serial_port.write("e\r\n".encode())
+            text_to_display.append("ACTION: Turn Right 'd'")
+            if serial_ok:
+                serial_port.write("d\r\n".encode())
         else:
+            if serial_ok:
+                serial_port.write("s\r\n".encode()) 
             #if nose to neck is too small, it mean it is close to person, stop
             ##Tune this number to stop going forward
-            if (  pow( (keypoints[17][2]-keypoints[0][2]),2) + pow( (keypoints[17][1]-keypoints[0][1]),2) < 0.029980197 ):
+            if (  pow( (keypoints[17][2]-keypoints[0][2]),2) + pow( (keypoints[17][1]-keypoints[0][1]),2) < 0.32980197 ):
                 text_to_display.append("ACTION: Go Straight Forward 'w'")
-                serial_port.write("w\r\n".encode())
+                if serial_ok:
+                    serial_port.write("w\r\n".encode())
             else:
+                #pass
                 text_to_display.append("ACTION: Stop, coming to close")
+                if serial_ok:
+                    serial_port.write("s\r\n".encode())
+
+            text_to_display.append("ACTION: Stop, coming to close")
+            if serial_ok:
+                serial_port.write("s\r\n".encode())                  
 
         text_to_display.append( "target-keypoint: %5.5f, %5.5f"%( target_keypoint[0], target_keypoint[1] ) )
               
@@ -587,8 +616,8 @@ def execute(img, src, t):
 
     #render the text with open CV
     for j in range(len(text_to_display)):
-        cv2.putText(src , text_to_display[j], (12, 52 + 30 * j),  cv2.FONT_HERSHEY_DUPLEX, 0.7, (20,20,20), 3, cv2.LINE_AA)
-        cv2.putText(src , text_to_display[j], (10, 50 + 30 * j),  cv2.FONT_HERSHEY_DUPLEX, 0.7, (234,181,69), 2, cv2.LINE_AA)
+        cv2.putText(src , text_to_display[j], (12, 52 + 70 * j),  cv2.FONT_HERSHEY_DUPLEX, 1.7, (20,20,20), 3, cv2.LINE_AA)
+        cv2.putText(src , text_to_display[j], (10, 50 + 70 * j),  cv2.FONT_HERSHEY_DUPLEX, 1.7, (234,181,234), 2, cv2.LINE_AA)
 
         if text_to_display[j].find('Possible fall') > -1 :
             text_to_display[j] = bcolors.WARNING + text_to_display[j] + bcolors.ENDC
