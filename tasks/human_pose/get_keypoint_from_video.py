@@ -15,6 +15,14 @@ import os.path
 #import emoji 
 import serial
 
+#for luma led display
+from luma.led_matrix.device import max7219
+from luma.core.interface.serial import spi, noop
+from luma.core.render import canvas
+from luma.core.legacy import text
+from luma.core.legacy.font import proportional, LCD_FONT
+from luma.core import legacy
+
 #for smoothing
 #for functions for faster calculations
 import numpy as np
@@ -29,6 +37,20 @@ import numpy as np
 #    stopbits=serial.STOPBITS_ONE,
 #)
 #
+
+def led_matrix(display_text):
+    if led_matrix_ok:
+        with canvas(led_device) as draw:        
+            text(draw, (1, 1), display_text, fill="white", font=proportional(LCD_FONT))
+            #legacy.text(draw, (0, 0), "\0", fill="white", font=up_arrow_bitmap_font)
+#    for _ in range(2):
+#        time.sleep(0.05)
+#        led_device.hide()
+#
+#        time.sleep(0.05)
+#        led_device.show()
+
+
 
 try:
     serial_port = serial.Serial(
@@ -45,6 +67,26 @@ except:
     serial_ok = False
 
 
+try:
+     # create matrix device
+    serial = spi(port=0, device=0, gpio=noop())
+    led_device = max7219(serial, width=8, height=8, rotate=0, block_orientation=0)
+    print("Created device")
+    led_matrix_ok = True
+
+except:
+    led_matrix_ok = False
+
+led_matrix("#")
+print('Loading models...')
+
+up_arrow_bitmap_font = [
+    [
+        0x10, 0x20, 0x40, 0xff, 0x40, 0x20, 0x10, 0x00
+    ]
+]   
+
+
 parser = argparse.ArgumentParser(description='TensorRT pose estimation run')
 parser.add_argument('--model', type=str, default='resnet', help = 'resnet or densenet' )
 parser.add_argument("-v", "--video", required=True,	help="path to input video file")
@@ -52,9 +94,6 @@ parser.add_argument("-v", "--video", required=True,	help="path to input video fi
 args = parser.parse_args()
 
 WINDOW_NAME = 'human_pose'
-
-
-
 
 with open('human_pose.json', 'r') as f:
     human_pose = json.load(f)
@@ -102,7 +141,7 @@ t1 = time.time()
 
 
 print("It took %5.1f"%(50.0 / (t1 - t0)),"s to load Model" )
-
+led_matrix("")
 
 mean = torch.Tensor([0.485, 0.456, 0.406]).cuda()
 std = torch.Tensor([0.229, 0.224, 0.225]).cuda()
@@ -388,7 +427,7 @@ def execute(img, src, t):
                     keypoints_x.append( keypoints[j][2] )
                     keypoints_y.append( keypoints[j][1] )
 
-            if len(keypoints_x) > 5:
+            if len(keypoints_x) > 7:
                 standard_dev_x = np.std(keypoints_x)
                 standard_dev_y = np.std(keypoints_y)
                 text_to_display.append( "{} points with x: {:.4f} y: {:.4f}".format(len(keypoints_x), standard_dev_x,standard_dev_y) )
@@ -575,29 +614,36 @@ def execute(img, src, t):
             text_to_display.append("ACTION: Turn Left 'a'") 
             if serial_ok:
                 serial_port.write("a\r\n".encode())
+            led_matrix("a")
         elif target_keypoint[0] > 0.5:
             text_to_display.append("ACTION: Turn Right 'd'")
             if serial_ok:
                 serial_port.write("d\r\n".encode())
+            led_matrix("d")                
         else:
             if serial_ok:
                 serial_port.write("s\r\n".encode()) 
+            led_matrix("s")                
             #if nose to neck is too small, it mean it is close to person, stop
             ##Tune this number to stop going forward
-            if (  pow( (keypoints[17][2]-keypoints[0][2]),2) + pow( (keypoints[17][1]-keypoints[0][1]),2) < 0.32980197 ):
+            if (  pow( (keypoints[17][2]-keypoints[0][2]),2) + pow( (keypoints[17][1]-keypoints[0][1]),2) < 0.02 ):
+
+                text_to_display.append("eye: %5.5f"%( pow( (keypoints[17][2]-keypoints[0][2]),2) + pow( (keypoints[17][1]-keypoints[0][1]),2) ))
                 text_to_display.append("ACTION: Go Straight Forward 'w'")
                 if serial_ok:
                     serial_port.write("w\r\n".encode())
+                led_matrix("w")
             else:
                 #pass
                 text_to_display.append("ACTION: Stop, coming to close")
                 if serial_ok:
                     serial_port.write("s\r\n".encode())
-
-            text_to_display.append("ACTION: Stop, coming to close")
-            if serial_ok:
-                serial_port.write("s\r\n".encode())                  
-
+                led_matrix("s")
+#            text_to_display.append("ACTION: Stop, coming to close")
+#            if serial_ok:
+#                serial_port.write("s\r\n".encode())         
+#             led_matrix("s")                         
+#
         text_to_display.append( "target-keypoint: %5.5f, %5.5f"%( target_keypoint[0], target_keypoint[1] ) )
               
 
@@ -691,4 +737,5 @@ finally:
     cv2.destroyAllWindows()
     #out_video.release()
     cap.release()
-    serial_port.close()
+    if serial_ok:
+        serial_port.close()
