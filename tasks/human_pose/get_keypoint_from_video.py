@@ -23,6 +23,7 @@ from luma.core.legacy import text
 from luma.core.legacy.font import proportional, LCD_FONT
 from luma.core import legacy
 
+
 #for smoothing
 #for functions for faster calculations
 import numpy as np
@@ -76,6 +77,8 @@ try:
 
 except:
     led_matrix_ok = False
+
+
 
 led_matrix("#")
 print('Loading models...')
@@ -273,7 +276,7 @@ class bcolors:
 
 def execute(img, src, t):
 
-    
+
     data = preprocess(img)
     cmap, paf = model_trt(data)
     cmap, paf = cmap.detach().cpu(), paf.detach().cpu()
@@ -297,6 +300,8 @@ def execute(img, src, t):
     temp_target_keypoint = []
         
     for i in range(counts[0]):
+
+        valid_raised_hand_human = False
 
         temp_text_to_display = []
 
@@ -420,7 +425,7 @@ def execute(img, src, t):
 
 
 
-        if (keypoints[5][1] or keypoints[6][1]) and (keypoints[7][1] or keypoints[8][1]) and (keypoints[11][1] or keypoints[12][1]):
+        if (keypoints[5][1] or keypoints[6][1]) and (keypoints[7][1] or keypoints[8][1]) and (keypoints[11][1] or keypoints[12][1]) and (keypoints[13][1] or keypoints[14][1]):
 
             for j in range(len(keypoints)):
                 if keypoints[j][1]:
@@ -432,8 +437,10 @@ def execute(img, src, t):
                 standard_dev_y = np.std(keypoints_y)
                 text_to_display.append( "{} points with x: {:.4f} y: {:.4f}".format(len(keypoints_x), standard_dev_x,standard_dev_y) )
 
-                ##Possible tuning of variable
-                fall_detection_percent = standard_dev_x / standard_dev_y / 1.2
+                ##Possible tuning of variable, the higher the variable, the less likely to fall
+                ##The wider the lens, it is it require higher number,
+                ##normal lensn 90degree can use 1.2
+                fall_detection_percent = standard_dev_x / standard_dev_y / 1.6
                 if fall_detection_percent > 1:
                     fall_detection_percent = 1
 
@@ -609,6 +616,7 @@ def execute(img, src, t):
         #largest_valid_human_keypoints
         keypoints = largest_valid_human_keypoints       
 
+
         #Variables to Tune
         if target_keypoint[0] < 0.4:
             text_to_display.append("ACTION: Turn Left 'a'") 
@@ -626,7 +634,7 @@ def execute(img, src, t):
             led_matrix("s")                
             #if nose to neck is too small, it mean it is close to person, stop
             ##Tune this number to stop going forward
-            if (  pow( (keypoints[17][2]-keypoints[0][2]),2) + pow( (keypoints[17][1]-keypoints[0][1]),2) < 0.02 ):
+            if (  pow( (keypoints[17][2]-keypoints[0][2]),2) + pow( (keypoints[17][1]-keypoints[0][1]),2) < 0.013 ):
 
                 text_to_display.append("eye: %5.5f"%( pow( (keypoints[17][2]-keypoints[0][2]),2) + pow( (keypoints[17][1]-keypoints[0][1]),2) ))
                 text_to_display.append("ACTION: Go Straight Forward 'w'")
@@ -644,6 +652,10 @@ def execute(img, src, t):
 #                serial_port.write("s\r\n".encode())         
 #             led_matrix("s")                         
 #
+
+
+
+
         text_to_display.append( "target-keypoint: %5.5f, %5.5f"%( target_keypoint[0], target_keypoint[1] ) )
               
 
