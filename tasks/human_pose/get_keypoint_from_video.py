@@ -45,8 +45,21 @@ import numpy as np
 def led_matrix(display_text):
     if led_matrix_ok:
         with canvas(led_device) as draw:        
-            text(draw, (1, 1), display_text, fill="white", font=proportional(LCD_FONT))
-            #legacy.text(draw, (0, 0), "\0", fill="white", font=up_arrow_bitmap_font)
+            if display_text == "w":
+                legacy.text(draw, (0, 0), "\0", fill="white", font=up_arrow_bitmap_font)
+            elif display_text == "a":
+                legacy.text(draw, (0, 0), "\0", fill="white", font=left_turn_arrow_bitmap_font)
+            elif display_text == "d":
+                legacy.text(draw, (0, 0), "\0", fill="white", font=right_turn_arrow_bitmap_font)
+            elif display_text == "s":
+                legacy.text(draw, (0, 0), "\0", fill="white", font=stop_arrow_bitmap_font)
+            elif display_text == "q":
+                legacy.text(draw, (0, 0), "\0", fill="white", font=left_arrow_bitmap_font)
+            elif display_text == "e":
+                legacy.text(draw, (0, 0), "\0", fill="white", font=right_arrow_bitmap_font)
+            else:
+                text(draw, (1, 1), display_text, fill="white", font=proportional(LCD_FONT))
+            #
 #    for _ in range(2):
 #        time.sleep(0.05)
 #        led_device.hide()
@@ -72,9 +85,9 @@ except:
 
 
 try:
-     # create matrix device
+    # create matrix device
     serial = spi(port=0, device=0, gpio=noop())
-    led_device = max7219(serial, width=8, height=8, rotate=0, block_orientation=0)
+    led_device = max7219(serial, width=8, height=8, rotate=1, block_orientation=0)
     print("Created device")
     led_matrix_ok = True
 
@@ -86,6 +99,35 @@ except:
 led_matrix("#")
 print('Loading models...')
 
+class LedCountDownThread(threading.Thread):
+    def __init__(self, *args, **kwargs): 
+        super(LedCountDownThread, self).__init__(*args, **kwargs) 
+        self._stopper = threading.Event() 
+
+     #  (avoid confusion)
+    def stopit(self):       
+        self._stopper.set() # ! must not use _stop
+        led_matrix("")      
+  
+    def stopped(self): 
+        return self._stopper.isSet() 
+  
+    def run(self):          
+        for i in range (10):
+            if self.stopped(): 
+                return            
+
+            led_matrix(str(i))
+            time.sleep(0.25)
+            led_matrix('')
+            time.sleep(0.25)
+            led_matrix(str(i))
+            time.sleep(0.25)
+            led_matrix('')
+            time.sleep(0.25)
+    
+led_countdown = LedCountDownThread()
+led_countdown.start()
 
 # Pin Definitions
 output_pin = 12  # BOARD pin 12, BCM pin 18
@@ -151,12 +193,14 @@ non_stop_buzzer = NonStopBuzzerThread()
 
 buzzer = threading.Thread(target=buzzer_thread, args=(2,0.04, ))
 
-
-up_arrow_bitmap_font = [
-    [
-        0x10, 0x20, 0x40, 0xff, 0x40, 0x20, 0x10, 0x00
-    ]
-]   
+#https://www.riyas.org/2013/12/online-led-matrix-font-generator-with.html
+up_arrow_bitmap_font = [ [0x18,0x3c,0x7e,0xdb,0x99,0x99,0x18,0x18] ]
+left_arrow_bitmap_font = [ [0x38,0x0c,0x06,0xff,0xff,0x06,0x0c,0x38] ]
+left_turn_arrow_bitmap_font = [ [0x30,0x60,0xfc,0xfe,0x63,0x33,0x06,0x0c] ]
+right_turn_arrow_bitmap_font = [ [0x0c,0x06,0x3f,0x7f,0xc6,0x6c,0x30,0x18] ]
+right_arrow_bitmap_font = [ [0x18,0x0c,0x06,0xff,0xff,0x06,0x0c,0x18] ]
+down_arrow_bitmap_font = [ [0x18,0x18,0x99,0x99,0xdb,0x7e,0x3c,0x18] ]
+stop_arrow_bitmap_font = [ [0x3c,0x42,0x40,0x3c,0x02,0x42,0x42,0x3c] ]
 
 
 parser = argparse.ArgumentParser(description='TensorRT pose estimation run')
@@ -213,7 +257,7 @@ t1 = time.time()
 
 
 print("It took %5.1f"%(50.0 / (t1 - t0)),"s to load Model" )
-led_matrix("")
+
 
 mean = torch.Tensor([0.485, 0.456, 0.406]).cuda()
 std = torch.Tensor([0.229, 0.224, 0.225]).cuda()
@@ -843,6 +887,12 @@ parse_objects = ParseObjects(topology)
 #draw_objects = DrawObjects(topology)
 
 try:
+
+    try:
+        led_countdown.stopit()
+        led_countdown.join()
+    except:
+        pass
 
     while cap.isOpened():
 
