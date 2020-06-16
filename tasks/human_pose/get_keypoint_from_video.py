@@ -14,6 +14,7 @@ import argparse
 import os.path
 #import emoji 
 import serial
+import threading
 
 #for luma led display
 from luma.led_matrix.device import max7219
@@ -23,6 +24,8 @@ from luma.core.legacy import text
 from luma.core.legacy.font import proportional, LCD_FONT
 from luma.core import legacy
 
+#for buzzer
+import Jetson.GPIO as GPIO
 
 #for smoothing
 #for functions for faster calculations
@@ -82,6 +85,67 @@ except:
 
 led_matrix("#")
 print('Loading models...')
+
+
+# Pin Definitions
+output_pin = 12  # BOARD pin 12, BCM pin 18
+
+last_serial_command_sent = ""
+next_serial_command_to_send = ""
+fall_detected_outer_rectangle_is_on = False
+halt_non_stop_buzzer_thread = False
+
+def buzzer_thread(beeptimes, sleeptime):
+
+    GPIO.setmode(GPIO.BCM)
+    #GPIO.setmode(GPIO.BOARD)
+    # set pin as an output pin with optional initial state of HIGH
+    GPIO.setup(output_pin, GPIO.OUT, initial=GPIO.HIGH)
+    curr_value = GPIO.HIGH
+
+    try:
+        for x in range(beeptimes):            
+            # Toggle the output every second
+            print("Outputting {} to pin {}".format(curr_value, output_pin))
+            GPIO.output(output_pin, curr_value)
+            curr_value ^= GPIO.HIGH
+            time.sleep(sleeptime)
+    finally:
+        GPIO.cleanup()
+        buzzer = threading.Thread(target=buzzer_thread, args=(2,0.04, ))
+
+
+def non_stop_buzzer_thread(sleeptime):
+    
+
+    GPIO.setmode(GPIO.BCM)
+    #GPIO.setmode(GPIO.BOARD)
+    # set pin as an output pin with optional initial state of HIGH
+    GPIO.setup(output_pin, GPIO.OUT, initial=GPIO.HIGH)
+    curr_value = GPIO.HIGH
+
+    try:
+        while True:          
+            # Toggle the output every second
+            global halt_non_stop_buzzer_thread
+            print("Outputting {} to pin {}".format(curr_value, output_pin))
+            GPIO.output(output_pin, curr_value)
+            curr_value ^= GPIO.HIGH
+            if halt_non_stop_buzzer_thread:
+                break
+
+            print("non stop: %s" % halt_non_stop_buzzer_thread)
+            time.sleep(sleeptime)
+
+    finally:
+        GPIO.cleanup()
+        halt_non_stop_buzzer_thread = False
+        buzzer_long = threading.Thread(target=non_stop_buzzer_thread, args=(0.4, ))
+
+
+buzzer = threading.Thread(target=buzzer_thread, args=(2,0.04, ))
+buzzer_long = threading.Thread(target=non_stop_buzzer_thread, args=(0.4, ))
+
 
 up_arrow_bitmap_font = [
     [
@@ -276,6 +340,11 @@ class bcolors:
 
 def execute(img, src, t):
 
+    global last_serial_command_sent
+    global next_serial_command_to_send
+    global fall_detected_outer_rectangle_is_on
+    global buzzer
+    global buzzer_long
 
     data = preprocess(img)
     cmap, paf = model_trt(data)
@@ -335,7 +404,7 @@ def execute(img, src, t):
                         x = round(keypoints[10][2] * WIDTH * X_compress)
                         y = round(keypoints[10][1] * HEIGHT * Y_compress)      
 
-                        cv2.circle(src, (x, y), 10, (0, 176, 176), 3, cv2.LINE_AA)  
+                        cv2.circle(src, (x, y), 20, (0, 176, 176), 4, cv2.LINE_AA)  
                         #hand_raised_human+=1
                         valid_raised_hand_human = True
 
@@ -618,43 +687,26 @@ def execute(img, src, t):
 
 
         #Variables to Tune
-        if target_keypoint[0] < 0.4:
+        if target_keypoint[0] < 0.4:            
             text_to_display.append("ACTION: Turn Left 'a'") 
-            if serial_ok:
-                serial_port.write("a\r\n".encode())
-            led_matrix("a")
+            next_serial_command_to_send = "a"
         elif target_keypoint[0] > 0.5:
             text_to_display.append("ACTION: Turn Right 'd'")
-            if serial_ok:
-                serial_port.write("d\r\n".encode())
-            led_matrix("d")                
+            next_serial_command_to_send = "d"               
         else:
-            if serial_ok:
-                serial_port.write("s\r\n".encode()) 
-            led_matrix("s")                
+            
             #if nose to neck is too small, it mean it is close to person, stop
             ##Tune this number to stop going forward
-            if (  pow( (keypoints[17][2]-keypoints[0][2]),2) + pow( (keypoints[17][1]-keypoints[0][1]),2) < 0.013 ):
+            if (  pow( (keypoints[1][2]-keypoints[2][2]),2) + pow( (keypoints[1][1]-keypoints[2][1]),2) < 0.00253 ):
 
-                text_to_display.append("eye: %5.5f"%( pow( (keypoints[17][2]-keypoints[0][2]),2) + pow( (keypoints[17][1]-keypoints[0][1]),2) ))
+                text_to_display.append("eyes: %5.5f"%( pow( (keypoints[1][2]-keypoints[2][2]),2) + pow( (keypoints[1][1]-keypoints[2][1]),2) ))
                 text_to_display.append("ACTION: Go Straight Forward 'w'")
-                if serial_ok:
-                    serial_port.write("w\r\n".encode())
-                led_matrix("w")
+                next_serial_command_to_send = "w"
             else:
                 #pass
                 text_to_display.append("ACTION: Stop, coming to close")
-                if serial_ok:
-                    serial_port.write("s\r\n".encode())
-                led_matrix("s")
-#            text_to_display.append("ACTION: Stop, coming to close")
-#            if serial_ok:
-#                serial_port.write("s\r\n".encode())         
-#             led_matrix("s")                         
-#
-
-
-
+                next_serial_command_to_send = "s"
+  
 
         text_to_display.append( "target-keypoint: %5.5f, %5.5f"%( target_keypoint[0], target_keypoint[1] ) )
               
@@ -672,13 +724,57 @@ def execute(img, src, t):
         
         #cv2.circle(src, (x, y), 12, (153,255,51), 2, cv2.LINE_AA)
 
+    else:
+        #if suddently no people raise hand, send "s" to stop
+        next_serial_command_to_send = "s"
+        #also stop buzzer
+        print ("Will STOP halt_non_stop_buzzer_thread")
+        halt_non_stop_buzzer_thread = True
+
+    #deciding which serial command to send
+    if last_serial_command_sent != next_serial_command_to_send:
+
+        if (last_serial_command_sent == "a" or last_serial_command_sent == "d" ) and ( next_serial_command_to_send == "w" or next_serial_command_to_send == "s" ):
+            #send "s" to stop if it was turning
+            if serial_ok:
+                serial_port.write ("s\r\n".encode() )
+            text_to_display.append("s")
+            led_matrix("s")
+
+
+        if serial_ok:
+            serial_port.write( (next_serial_command_to_send + "\r\n").encode() )
+        led_matrix(next_serial_command_to_send)
+        text_to_display.append(next_serial_command_to_send)
+
+        if next_serial_command_to_send == "a" or next_serial_command_to_send == "d" or  next_serial_command_to_send == "w":
+            if not buzzer_long.isAlive():                
+                buzzer_long.start()
+
+        last_serial_command_sent = next_serial_command_to_send
+
+    else:
+        #send a dummy "z" char
+        if serial_ok:
+            serial_port.write ("z\r\n".encode() )        
+
     #render the text with open CV
     for j in range(len(text_to_display)):
         cv2.putText(src , text_to_display[j], (12, 52 + 70 * j),  cv2.FONT_HERSHEY_DUPLEX, 1.7, (20,20,20), 3, cv2.LINE_AA)
         cv2.putText(src , text_to_display[j], (10, 50 + 70 * j),  cv2.FONT_HERSHEY_DUPLEX, 1.7, (234,181,234), 2, cv2.LINE_AA)
 
+
         if text_to_display[j].find('Possible fall') > -1 :
+            if fall_detected_outer_rectangle_is_on:
+                cv2.rectangle( src, (0,0), (1920,1080), (0, 0, 255 ), 20 )
+                fall_detected_outer_rectangle_is_on = False
+            else:                
+                fall_detected_outer_rectangle_is_on = True
+                
             text_to_display[j] = bcolors.WARNING + text_to_display[j] + bcolors.ENDC
+            
+            if not buzzer.isAlive():                    
+                buzzer.start()
 
     if len(text_to_display) > 0: 
         print( ', '.join(text_to_display) )
@@ -696,6 +792,9 @@ def execute(img, src, t):
     #edited following code might make it slower
     #return img, pose_list
 
+#send a dummy "z" char
+if serial_ok:
+    serial_port.write ("z\r\n".encode() )
 
 cap = cv2.VideoCapture(args.video, cv2.CAP_GSTREAMER)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, display_width)
@@ -751,3 +850,9 @@ finally:
     cap.release()
     if serial_ok:
         serial_port.close()
+
+    GPIO.setmode(GPIO.BCM)
+    #GPIO.setmode(GPIO.BOARD)
+    # set pin as an output pin with optional initial state of HIGH
+    GPIO.setup(output_pin, GPIO.OUT, initial=GPIO.LOW)        
+    GPIO.output(output_pin, GPIO.LOW)
