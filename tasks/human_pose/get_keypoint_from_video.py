@@ -115,36 +115,42 @@ def buzzer_thread(beeptimes, sleeptime):
         buzzer = threading.Thread(target=buzzer_thread, args=(2,0.04, ))
 
 
-def non_stop_buzzer_thread(sleeptime):
-    
+class NonStopBuzzerThread(threading.Thread):
+    #https://www.geeksforgeeks.org/python-different-ways-to-kill-a-thread/
 
-    GPIO.setmode(GPIO.BCM)
-    #GPIO.setmode(GPIO.BOARD)
-    # set pin as an output pin with optional initial state of HIGH
-    GPIO.setup(output_pin, GPIO.OUT, initial=GPIO.HIGH)
-    curr_value = GPIO.HIGH
+    def __init__(self, *args, **kwargs): 
+        super(NonStopBuzzerThread, self).__init__(*args, **kwargs) 
+        self._stopper = threading.Event() 
+  
+     #  (avoid confusion)
+    def stopit(self):       
+        self._stopper.set() # ! must not use _stop
+        GPIO.output(output_pin, GPIO.LOW)       
+  
+    def stopped(self): 
+        return self._stopper.isSet() 
+  
+    def run(self): 
+        GPIO.setmode(GPIO.BCM)
+        #GPIO.setmode(GPIO.BOARD)
+        # set pin as an output pin with optional initial state of HIGH
+        GPIO.setup(output_pin, GPIO.OUT, initial=GPIO.HIGH)
+        curr_value = GPIO.HIGH        
 
-    try:
-        while True:          
-            # Toggle the output every second
-            global halt_non_stop_buzzer_thread
+        while True:
+            if self.stopped(): 
+                return
+
             print("Outputting {} to pin {}".format(curr_value, output_pin))
             GPIO.output(output_pin, curr_value)
-            curr_value ^= GPIO.HIGH
-            if halt_non_stop_buzzer_thread:
-                break
+            curr_value ^= GPIO.HIGH                     
+            time.sleep(0.5) 
 
-            print("non stop: %s" % halt_non_stop_buzzer_thread)
-            time.sleep(sleeptime)
 
-    finally:
-        GPIO.cleanup()
-        halt_non_stop_buzzer_thread = False
-        buzzer_long = threading.Thread(target=non_stop_buzzer_thread, args=(0.4, ))
-
+non_stop_buzzer = NonStopBuzzerThread()
 
 buzzer = threading.Thread(target=buzzer_thread, args=(2,0.04, ))
-buzzer_long = threading.Thread(target=non_stop_buzzer_thread, args=(0.4, ))
+
 
 
 up_arrow_bitmap_font = [
@@ -344,7 +350,7 @@ def execute(img, src, t):
     global next_serial_command_to_send
     global fall_detected_outer_rectangle_is_on
     global buzzer
-    global buzzer_long
+    global non_stop_buzzer
 
     data = preprocess(img)
     cmap, paf = model_trt(data)
@@ -728,8 +734,15 @@ def execute(img, src, t):
         #if suddently no people raise hand, send "s" to stop
         next_serial_command_to_send = "s"
         #also stop buzzer
-        print ("Will STOP halt_non_stop_buzzer_thread")
-        halt_non_stop_buzzer_thread = True
+        #print ("Will STOP halt_non_stop_buzzer_thread")
+        if non_stop_buzzer.isAlive():
+            try:
+                non_stop_buzzer.stopit()
+                non_stop_buzzer.join()
+                non_stop_buzzer = NonStopBuzzerThread() ##create a new thread
+            except:
+                pass
+
 
     #deciding which serial command to send
     if last_serial_command_sent != next_serial_command_to_send:
@@ -748,8 +761,8 @@ def execute(img, src, t):
         text_to_display.append(next_serial_command_to_send)
 
         if next_serial_command_to_send == "a" or next_serial_command_to_send == "d" or  next_serial_command_to_send == "w":
-            if not buzzer_long.isAlive():                
-                buzzer_long.start()
+            if not non_stop_buzzer.isAlive():                
+                non_stop_buzzer.start()
 
         last_serial_command_sent = next_serial_command_to_send
 
@@ -773,8 +786,8 @@ def execute(img, src, t):
                 
             text_to_display[j] = bcolors.WARNING + text_to_display[j] + bcolors.ENDC
             
-            if not buzzer.isAlive():                    
-                buzzer.start()
+            if not non_stop_buzzer.isAlive():                    
+                non_stop_buzzer.start()
 
     if len(text_to_display) > 0: 
         print( ', '.join(text_to_display) )
