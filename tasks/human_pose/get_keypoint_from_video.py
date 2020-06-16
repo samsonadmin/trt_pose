@@ -711,6 +711,14 @@ def execute(img, src, t):
                 #pass
                 text_to_display.append("ACTION: Stop, coming to close")
                 next_serial_command_to_send = "s"
+
+                if non_stop_buzzer.isAlive():
+                    try:
+                        non_stop_buzzer.stopit()
+                        non_stop_buzzer.join()
+                        non_stop_buzzer = NonStopBuzzerThread() ##create a new thread
+                    except:
+                        pass                
   
 
         text_to_display.append( "target-keypoint: %5.5f, %5.5f"%( target_keypoint[0], target_keypoint[1] ) )
