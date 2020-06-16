@@ -152,7 +152,6 @@ non_stop_buzzer = NonStopBuzzerThread()
 buzzer = threading.Thread(target=buzzer_thread, args=(2,0.04, ))
 
 
-
 up_arrow_bitmap_font = [
     [
         0x10, 0x20, 0x40, 0xff, 0x40, 0x20, 0x10, 0x00
@@ -405,7 +404,7 @@ def execute(img, src, t):
                     #if right hand higher than right shoulder 
                     if keypoints[10][1] < keypoints[6][1]:
 
-                        text_to_display.append("Right Wrist is Higher")
+                        ###text_to_display.append("Right Wrist is Higher")
 
                         x = round(keypoints[10][2] * WIDTH * X_compress)
                         y = round(keypoints[10][1] * HEIGHT * Y_compress)      
@@ -426,7 +425,7 @@ def execute(img, src, t):
                     #if left hand higher than left shoulder 
                     if keypoints[9][1] < keypoints[5][1]:
 
-                        text_to_display.append("Left Wrist is Higher")
+                        ###text_to_display.append("Left Wrist is Higher")
 
                         x = round(keypoints[9][2] * WIDTH * X_compress)
                         y = round(keypoints[9][1] * HEIGHT * Y_compress)  
@@ -445,7 +444,7 @@ def execute(img, src, t):
 
                 #if left hand higher than left shoulder 
                 if keypoints[9][1] < keypoints[5][1]:                
-                    text_to_display.append("Left Wrist")
+                    ###text_to_display.append("Left Wrist")
                     x = round(keypoints[9][2] * WIDTH * X_compress)
                     y = round(keypoints[9][1] * HEIGHT * Y_compress)
 
@@ -464,7 +463,7 @@ def execute(img, src, t):
 
                 #if right hand higher than right shoulder 
                 if keypoints[10][1] < keypoints[6][1]:                
-                    text_to_display.append("Right Wrist")
+                    ###text_to_display.append("Right Wrist")
                     x = round(keypoints[10][2] * WIDTH * X_compress)
                     y = round(keypoints[10][1] * HEIGHT * Y_compress)
                               
@@ -510,7 +509,7 @@ def execute(img, src, t):
             if len(keypoints_x) > 7:
                 standard_dev_x = np.std(keypoints_x)
                 standard_dev_y = np.std(keypoints_y)
-                text_to_display.append( "{} points with x: {:.4f} y: {:.4f}".format(len(keypoints_x), standard_dev_x,standard_dev_y) )
+                ###text_to_display.append( "{} points with x: {:.4f} y: {:.4f}".format(len(keypoints_x), standard_dev_x,standard_dev_y) )
 
                 ##Possible tuning of variable, the higher the variable, the less likely to fall
                 ##The wider the lens, it is it require higher number,
@@ -856,11 +855,12 @@ try:
 except KeyboardInterrupt:
     print("Keyboard interrupt exception caught")
 
+    try:
+        non_stop_buzzer.stopit()
+        non_stop_buzzer.join()
+    except:
+        pass
 
-finally:
-    cv2.destroyAllWindows()
-    #out_video.release()
-    cap.release()
     if serial_ok:
         serial_port.close()
 
@@ -869,3 +869,11 @@ finally:
     # set pin as an output pin with optional initial state of HIGH
     GPIO.setup(output_pin, GPIO.OUT, initial=GPIO.LOW)        
     GPIO.output(output_pin, GPIO.LOW)
+
+
+finally:
+    cv2.destroyAllWindows()
+    #out_video.release()
+    cap.release()
+
+    
