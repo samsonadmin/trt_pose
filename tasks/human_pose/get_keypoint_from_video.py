@@ -48,9 +48,13 @@ def led_matrix(display_text):
             if display_text == "w":
                 legacy.text(draw, (0, 0), "\0", fill="white", font=up_arrow_bitmap_font)
             elif display_text == "a":
-                legacy.text(draw, (0, 0), "\0", fill="white", font=left_turn_arrow_bitmap_font)
-            elif display_text == "d":
+                #legacy.text(draw, (0, 0), "\0", fill="white", font=left_turn_arrow_bitmap_font)
+                #purposely switched left / right because user is facing forward
                 legacy.text(draw, (0, 0), "\0", fill="white", font=right_turn_arrow_bitmap_font)
+            elif display_text == "d":
+                #legacy.text(draw, (0, 0), "\0", fill="white", font=right_turn_arrow_bitmap_font)
+                #purposely switched left / right because user is facing forward
+                legacy.text(draw, (0, 0), "\0", fill="white", font=left_turn_arrow_bitmap_font)
             elif display_text == "s":
                 legacy.text(draw, (0, 0), "\0", fill="white", font=stop_arrow_bitmap_font)
             elif display_text == "q":
@@ -79,9 +83,11 @@ try:
         stopbits=serial.STOPBITS_ONE,
     )
     serial_ok = True
+    print("Serial port OK")
 
 except:
     serial_ok = False
+    print("Serial Port issue")
 
 
 try:
@@ -113,7 +119,7 @@ class LedCountDownThread(threading.Thread):
         return self._stopper.isSet() 
   
     def run(self):          
-        for i in range (10):
+        for i in range (18,1,-1):
             if self.stopped(): 
                 return            
 
@@ -148,7 +154,7 @@ def buzzer_thread(beeptimes, sleeptime):
     try:
         for x in range(beeptimes):            
             # Toggle the output every second
-            print("Outputting {} to pin {}".format(curr_value, output_pin))
+            #print("Outputting {} to pin {}".format(curr_value, output_pin))
             GPIO.output(output_pin, curr_value)
             curr_value ^= GPIO.HIGH
             time.sleep(sleeptime)
@@ -183,7 +189,7 @@ class NonStopBuzzerThread(threading.Thread):
             if self.stopped(): 
                 return
 
-            print("Outputting {} to pin {}".format(curr_value, output_pin))
+            #print("Outputting {} to pin {}".format(curr_value, output_pin))
             GPIO.output(output_pin, curr_value)
             curr_value ^= GPIO.HIGH                     
             time.sleep(0.5) 
@@ -746,7 +752,7 @@ def execute(img, src, t):
             
             #if nose to neck is too small, it mean it is close to person, stop
             ##Tune this number to stop going forward
-            if (  pow( (keypoints[1][2]-keypoints[2][2]),2) + pow( (keypoints[1][1]-keypoints[2][1]),2) < 0.00253 ):
+            if (  pow( (keypoints[1][2]-keypoints[2][2]),2) + pow( (keypoints[1][1]-keypoints[2][1]),2) < 0.00182 ):
 
                 text_to_display.append("eyes: %5.5f"%( pow( (keypoints[1][2]-keypoints[2][2]),2) + pow( (keypoints[1][1]-keypoints[2][1]),2) ))
                 text_to_display.append("ACTION: Go Straight Forward 'w'")
@@ -818,9 +824,10 @@ def execute(img, src, t):
         last_serial_command_sent = next_serial_command_to_send
 
     else:
+        pass
         #send a dummy "z" char
-        if serial_ok:
-            serial_port.write ("z\r\n".encode() )        
+        #if serial_ok:
+        #    serial_port.write ("z\r\n".encode() )        
 
     #render the text with open CV
     for j in range(len(text_to_display)):
@@ -857,8 +864,8 @@ def execute(img, src, t):
     #return img, pose_list
 
 #send a dummy "z" char
-if serial_ok:
-    serial_port.write ("z\r\n".encode() )
+#if serial_ok:
+#    serial_port.write ("z\r\n".encode() )
 
 cap = cv2.VideoCapture(args.video, cv2.CAP_GSTREAMER)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, display_width)
