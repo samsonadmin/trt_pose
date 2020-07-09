@@ -136,32 +136,33 @@ led_countdown = LedCountDownThread()
 led_countdown.start()
 
 # Pin Definitions
-output_pin = 12  # BOARD pin 12, BCM pin 18
+gpio_buzzer = 12  # BOARD pin 12, BCM pin 18
 
 last_serial_command_sent = ""
 next_serial_command_to_send = ""
 fall_detected_outer_rectangle_is_on = False
 halt_non_stop_buzzer_thread = False
 
-def buzzer_thread(beeptimes, sleeptime):
-
-    GPIO.setmode(GPIO.BCM)
-    #GPIO.setmode(GPIO.BOARD)
-    # set pin as an output pin with optional initial state of HIGH
-    GPIO.setup(output_pin, GPIO.OUT, initial=GPIO.HIGH)
-    curr_value = GPIO.HIGH
-
-    try:
-        for x in range(beeptimes):            
-            # Toggle the output every second
-            #print("Outputting {} to pin {}".format(curr_value, output_pin))
-            GPIO.output(output_pin, curr_value)
-            curr_value ^= GPIO.HIGH
-            time.sleep(sleeptime)
-    finally:
-        GPIO.cleanup()
-        buzzer = threading.Thread(target=buzzer_thread, args=(2,0.04, ))
-
+##def buzzer_thread(beeptimes, sleeptime):
+##
+##    GPIO.setmode(GPIO.BCM)
+##    #GPIO.setmode(GPIO.BOARD)
+##    # set pin as an output pin with optional initial state of HIGH
+##    GPIO.setup(gpio_buzzer, GPIO.OUT, initial=GPIO.HIGH)
+##    curr_value = GPIO.HIGH
+##
+##    try:
+##        for x in range(beeptimes):            
+##            # Toggle the output every second
+##            #print("Outputting {} to pin {}".format(curr_value, gpio_buzzer))
+##            GPIO.output(gpio_buzzer, curr_value)
+##            curr_value ^= GPIO.HIGH
+##            time.sleep(sleeptime)
+##    finally:
+##        #GPIO.cleanup()
+##        buzzer = threading.Thread(target=buzzer_thread, args=(2,0.04, ))
+##
+##
 
 class NonStopBuzzerThread(threading.Thread):
     #https://www.geeksforgeeks.org/python-different-ways-to-kill-a-thread/
@@ -173,7 +174,7 @@ class NonStopBuzzerThread(threading.Thread):
      #  (avoid confusion)
     def stopit(self):       
         self._stopper.set() # ! must not use _stop
-        GPIO.output(output_pin, GPIO.LOW)       
+        GPIO.output(gpio_buzzer, GPIO.LOW)       
   
     def stopped(self): 
         return self._stopper.isSet() 
@@ -182,22 +183,141 @@ class NonStopBuzzerThread(threading.Thread):
         GPIO.setmode(GPIO.BCM)
         #GPIO.setmode(GPIO.BOARD)
         # set pin as an output pin with optional initial state of HIGH
-        GPIO.setup(output_pin, GPIO.OUT, initial=GPIO.HIGH)
+        GPIO.setup(gpio_buzzer, GPIO.OUT, initial=GPIO.HIGH)
         curr_value = GPIO.HIGH        
 
         while True:
             if self.stopped(): 
                 return
 
-            #print("Outputting {} to pin {}".format(curr_value, output_pin))
-            GPIO.output(output_pin, curr_value)
+            #print("Outputting {} to pin {}".format(curr_value, gpio_buzzer))
+            GPIO.output(gpio_buzzer, curr_value)
             curr_value ^= GPIO.HIGH                     
             time.sleep(0.5) 
 
 
 non_stop_buzzer = NonStopBuzzerThread()
 
-buzzer = threading.Thread(target=buzzer_thread, args=(2,0.04, ))
+#buzzer = threading.Thread(target=buzzer_thread, args=(2,0.04, ))
+
+
+class UltrasonicSensorThread(threading.Thread):
+    
+    global ultrasonic_gpio
+
+    def __init__(self, *args, **kwargs): 
+        super(UltrasonicSensorThread, self).__init__(*args, **kwargs) 
+        self._stopper = threading.Event() 
+  
+     #  (avoid confusion)
+    def stopit(self):       
+        self._stopper.set() # ! must not use _stop
+        for i in range (len(ultrasonic_gpio)):
+            GPIO.output(ultrasonic_gpio[i][0], False)
+    
+    def stopped(self): 
+        
+        return self._stopper.isSet() 
+  
+    def run(self): 
+
+
+        while True:
+
+            for i in range (len(ultrasonic_gpio)):
+
+                if self.stopped(): 
+                    return      
+
+                GPIO.setmode(GPIO.BCM)          
+
+                GPIO.setup( ultrasonic_gpio[i][0], GPIO.OUT)
+                GPIO.setup( ultrasonic_gpio[i][1], GPIO.IN)
+                GPIO.output( ultrasonic_gpio[i][0], False)
+
+                
+                GPIO.output(ultrasonic_gpio[i][0], True)
+                time.sleep(0.00001)
+                GPIO.output(ultrasonic_gpio[i][0], False)                
+
+                counter = 0
+                new_reading = False
+                while GPIO.input( ultrasonic_gpio[i][1] )==0:
+                    counter += 1
+                    if counter == 700:
+                        new_reading = True
+                        break                    
+                    pulse_start = time.time()
+
+                if new_reading:
+                    print("NEW Reading1")
+                    continue
+                
+                counter = 0
+                new_reading = False
+                while GPIO.input( ultrasonic_gpio[i][1] )==1:
+                    counter += 1
+                    if counter == 700:
+                        new_reading = True
+                        break            
+                    pulse_end = time.time()
+
+                if new_reading:
+                    print("NEW Reading2")
+                    continue
+
+
+                pulse_duration = pulse_end - pulse_start
+                distance = pulse_duration * 17165
+                distance = round(distance, 1)
+                if distance > 0 and distance < 800 :
+                    ultrasonic_detected_distance[i] = distance
+                    print ('Distance ',i, ':',distance,'cm')
+                else :
+                    print ('Distance ',i,' error')
+                
+                GPIO.output(ultrasonic_gpio[i][0], True)
+
+                #time.sleep(0.001)
+
+
+
+#ultrasonic_gpio #Front LEFT, #FRONT RIGHT, #LEFT, #RIGHT
+ultrasonic_gpio = [ [17,18,0], [27,23,0], [22,24,0] , [5,25,0] ]
+ultrasonic_detected_distance = [0, 0, 0, 0]
+
+
+ultrasonic_thread = UltrasonicSensorThread()
+
+
+
+
+##Variables to tune
+#if this variable is smaller, then the center will very narrow, causing more frequent re-centering
+# ****************************************************************
+# *                          *        *                           *
+# *  TURN_LEFT_THRESHOLD     *        *   TURN_RIGHT_THRESHOLD    *
+# *                          *        *                           *
+# *****************************************************************
+
+TURN_LEFT_THRESHOLD = 0.43
+TURN_RIGHT_THRESHOLD = 0.57
+
+# The further aways, the pair of eyes would be smaller, is if it is smaller than the stop threshold, then it can go forward.
+#   body_labels = {0:'nose', 1: 'lEye', 2: 'rEye', 3:'lEar', 4:'rEar', 5:'lShoulder', 6:'rShoulder', 
+#               7:'lElbow', 8:'rElbow', 9:'lWrist', 10:'rWrist', 11:'lHip', 12:'rHip', 13:'lKnee', 14:'rKnee',
+#              15:'lAnkle', 16:'rAnkle', 17:'neck'}
+
+STOP_FORWARD_LEFT_RIGHT_EYE_THRESHOLD = 0.00182
+
+#min distance in cm for ultrasonic detection to allow moving
+ULTRASONIC_FORWARD_HIGH_SPEED_MIN_DISTANCE = 200
+ULTRASONIC_FORWARD_MIN_DISTANCE = 50 
+
+ULTRASONIC_SIDE_MIN_DISTANCE = 60 
+
+
+
 
 #https://www.riyas.org/2013/12/online-led-matrix-font-generator-with.html
 up_arrow_bitmap_font = [ [0x18,0x3c,0x7e,0xdb,0x99,0x99,0x18,0x18] ]
@@ -310,68 +430,6 @@ def get_keypoint(humans, hnum, peaks):
     return kpoint
 
 
-#class GetKeypoints(object):
-#    def __init__(self, topology):
-#        self.topology = topology
-#        self.body_labels = {0:'nose', 1: 'lEye', 2: 'rEye', 3:'lEar', 4:'rEar', 5:'lShoulder', 6:'rShoulder',
-#               7:'lElbow', 8:'rElbow', 9:'lWrist', 10:'rWrist', 11:'lHip', 12:'rHip', 13:'lKnee', 14:'rKnee',
-#              15:'lAnkle', 16:'rAnkle', 17:'neck'}
-#        self.body_parts = sorted(self.body_labels.values())
-#
-#    def __call__(self, image, object_counts, objects, normalized_peaks):
-#        topology = self.topology
-#        height = image.shape[0]
-#        width = image.shape[1]
-#
-#        K = topology.shape[0]
-#        count = int(object_counts[0])
-#        if count > 1:
-#            count = 1
-#        K = topology.shape[0]
-#        
-#        body_dict = {}
-#        feature_vec = []
-#        for i in range(count):
-#            obj = objects[0][i]
-#            C = obj.shape[0]
-#            for j in range(C):
-#                k = int(obj[j])
-#                if k >= 0:
-#                    peak = normalized_peaks[0][j][k]
-#                    x = round(float(peak[1]) * width)
-#                    y = round(float(peak[0]) * height)
-#                    body_dict[self.body_labels[j]] = [x,y]
-#        for part in self.body_parts:
-#            feature_vec.append(body_dict.get(part, [0,0]))
-#        feature_vec = [item for sublist in feature_vec for item in sublist]
-#        return feature_vec
-#
-
-#class ListHumans(object):
-#    def __init__(self, body_labels=body_labels):
-#        self.body_labels = body_labels
-#
-#    def __call__(self, objects, normalized_peaks):
-#
-#        pose_list = []
-#        for obj in objects[0]:
-#            pose_dict = {}
-#            C = obj.shape[0]
-#            for j in range(C):
-#                k = int(obj[j])
-#                if k >= 0:
-#                    peak = normalized_peaks[0][j][k]
-#                    x = round(float(peak[1]) * WIDTH)
-#                    y = round(float(peak[0]) * HEIGHT)
-#                    #cv2.circle(image, (x, y), 3, color, 2)
-#                    pose_dict[self.body_labels[j]] = (x,y)
-#            pose_list.append(pose_dict)
-#
-#        return pose_list
-#
-#humans = ListHumans()
-#
-
 
 
 def preprocess(image):
@@ -400,6 +458,11 @@ def execute(img, src, t):
     global fall_detected_outer_rectangle_is_on
     global buzzer
     global non_stop_buzzer
+
+    global TURN_LEFT_THRESHOLD
+    global TURN_RIGHT_THRESHOLD
+    global STOP_FORWARD_LEFT_RIGHT_EYE_THRESHOLD
+
 
     data = preprocess(img)
     cmap, paf = model_trt(data)
@@ -556,7 +619,7 @@ def execute(img, src, t):
                     keypoints_x.append( keypoints[j][2] )
                     keypoints_y.append( keypoints[j][1] )
 
-            if len(keypoints_x) > 7:
+            if len(keypoints_x) > 6:
                 standard_dev_x = np.std(keypoints_x)
                 standard_dev_y = np.std(keypoints_y)
                 ###text_to_display.append( "{} points with x: {:.4f} y: {:.4f}".format(len(keypoints_x), standard_dev_x,standard_dev_y) )
@@ -742,21 +805,45 @@ def execute(img, src, t):
 
 
         #Variables to Tune
-        if target_keypoint[0] < 0.4:            
+        if target_keypoint[0] < TURN_LEFT_THRESHOLD:
             text_to_display.append("ACTION: Turn Left 'a'") 
             next_serial_command_to_send = "a"
-        elif target_keypoint[0] > 0.5:
+        elif target_keypoint[0] > TURN_RIGHT_THRESHOLD:
             text_to_display.append("ACTION: Turn Right 'd'")
             next_serial_command_to_send = "d"               
         else:
             
-            #if nose to neck is too small, it mean it is close to person, stop
+            #lets use the left and right eye light
             ##Tune this number to stop going forward
-            if (  pow( (keypoints[1][2]-keypoints[2][2]),2) + pow( (keypoints[1][1]-keypoints[2][1]),2) < 0.00182 ):
+            if (  pow( (keypoints[1][2]-keypoints[2][2]),2) + pow( (keypoints[1][1]-keypoints[2][1]),2) < STOP_FORWARD_LEFT_RIGHT_EYE_THRESHOLD ):
 
                 text_to_display.append("eyes: %5.5f"%( pow( (keypoints[1][2]-keypoints[2][2]),2) + pow( (keypoints[1][1]-keypoints[2][1]),2) ))
-                text_to_display.append("ACTION: Go Straight Forward 'w'")
-                next_serial_command_to_send = "w"
+
+                #Now, its time to check again the ultrasonic measurments
+                if ultrasonic_detected_distance[0] > 0 and ultrasonic_detected_distance[1] > 0 :
+                    if ultrasonic_detected_distance[0] > ULTRASONIC_FORWARD_MIN_DISTANCE and ultrasonic_detected_distance[1] > ULTRASONIC_FORWARD_MIN_DISTANCE:
+                        text_to_display.append("SONIC ACTION: Go Straight Forward 'w'")
+                        next_serial_command_to_send = "w"
+                    else:
+                        if ultrasonic_detected_distance[2] > 0 and ultrasonic_detected_distance[2] > 0 :
+                            if ultrasonic_detected_distance[2] > ULTRASONIC_SIDE_MIN_DISTANCE and ultrasonic_detected_distance[3] > ULTRASONIC_SIDE_MIN_DISTANCE:
+                                if ultrasonic_detected_distance[2] > ultrasonic_detected_distance[3] :
+                                    text_to_display.append("ACTION: SHIFT Left 'q'") 
+                                    next_serial_command_to_send = "q"                          
+                                else:
+                                    text_to_display.append("ACTION: SHIFT Right 'e'") 
+                                    next_serial_command_to_send = "e"
+                            else:
+                                text_to_display.append("No SIDE space to move. STOP")
+                                next_serial_command_to_send = "s"                                
+
+                        else:
+                            text_to_display.append("SIDE Ultrasonic sensor FAILED")
+                else:
+                    text_to_display.append("FRONT Ultrasonic sensor FAILED")
+
+                #text_to_display.append("ACTION: Go Straight Forward 'w'")
+                #next_serial_command_to_send = "w"
             else:
                 #pass
                 text_to_display.append("ACTION: Stop, coming to close")
@@ -818,8 +905,13 @@ def execute(img, src, t):
         text_to_display.append(next_serial_command_to_send)
 
         if next_serial_command_to_send == "a" or next_serial_command_to_send == "d" or  next_serial_command_to_send == "w":
-            if not non_stop_buzzer.isAlive():                
-                non_stop_buzzer.start()
+            if not non_stop_buzzer.isAlive():
+                ##it might happen that buzzer thread is dear
+                try:          
+                    non_stop_buzzer.start()
+                except:
+                    non_stop_buzzer = NonStopBuzzerThread() ##create a new thread
+
 
         last_serial_command_sent = next_serial_command_to_send
 
@@ -895,6 +987,10 @@ parse_objects = ParseObjects(topology)
 
 try:
 
+    GPIO.setmode(GPIO.BCM)
+    if not ultrasonic_thread.isAlive():                    
+        ultrasonic_thread.start()
+
     try:
         led_countdown.stopit()
         led_countdown.join()
@@ -929,11 +1025,11 @@ except KeyboardInterrupt:
     if serial_ok:
         serial_port.close()
 
-    GPIO.setmode(GPIO.BCM)
-    #GPIO.setmode(GPIO.BOARD)
-    # set pin as an output pin with optional initial state of HIGH
-    GPIO.setup(output_pin, GPIO.OUT, initial=GPIO.LOW)        
-    GPIO.output(output_pin, GPIO.LOW)
+
+    GPIO.setup(gpio_buzzer, GPIO.OUT, initial=GPIO.LOW)        
+    GPIO.output(gpio_buzzer, GPIO.LOW)
+
+    GPIO.cleanup()
 
 
 finally:
@@ -941,4 +1037,5 @@ finally:
     #out_video.release()
     cap.release()
 
+    GPIO.cleanup()
     
