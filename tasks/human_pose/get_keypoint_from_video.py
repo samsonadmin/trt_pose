@@ -804,7 +804,6 @@ def execute(img, src, t):
         keypoints = largest_valid_human_keypoints       
 
 
-        #Variables to Tune
         if target_keypoint[0] < TURN_LEFT_THRESHOLD:
             text_to_display.append("ACTION: Turn Left 'a'") 
             next_serial_command_to_send = "a"
@@ -814,7 +813,6 @@ def execute(img, src, t):
         else:
             
             #lets use the left and right eye light
-            ##Tune this number to stop going forward
             if (  pow( (keypoints[1][2]-keypoints[2][2]),2) + pow( (keypoints[1][1]-keypoints[2][1]),2) < STOP_FORWARD_LEFT_RIGHT_EYE_THRESHOLD ):
 
                 text_to_display.append("eyes: %5.5f"%( pow( (keypoints[1][2]-keypoints[2][2]),2) + pow( (keypoints[1][1]-keypoints[2][1]),2) ))
